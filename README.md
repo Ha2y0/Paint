@@ -1,5 +1,3 @@
-# Paint
-
 Minecraft Paper 서버에서 그림판 기능을 제공하는 플러그인입니다.
 
 ## 목차
@@ -32,30 +30,30 @@ Minecraft Paper 서버에서 그림판 기능을 제공하는 플러그인입니
 
 ### 메인 메뉴
 
-<img width="2560" height="1440" alt="2026-07-01_01 30 32" src="https://github.com/user-attachments/assets/31f92357-8267-4fc9-9116-9747c4651f3b" />
+<img width="2560" height="1440" alt="2026-07-01_01 30 32" src="https://github.com/user-attachments/assets/869b9384-b38d-4120-a5ec-dc8a5bea4542" />
 
 ### 캔버스 설치 프리뷰
 
-<img width="2560" height="1440" alt="2026-07-01_01 31 22" src="https://github.com/user-attachments/assets/9434bb36-dced-4028-a6bd-0a5e5f991b95" />
-<img width="2560" height="1440" alt="2026-07-01_01 31 52" src="https://github.com/user-attachments/assets/b411f120-5e4a-4ba8-98ac-bcf842e32071" />
+<img width="2560" height="1440" alt="2026-07-01_01 31 22" src="https://github.com/user-attachments/assets/a4740925-78af-49ec-b94d-43f2a255f298" />
+<img width="2560" height="1440" alt="2026-07-01_01 31 52" src="https://github.com/user-attachments/assets/c08d6665-b5ed-4850-9472-17730ea0c10d" />
 
 ### 그림 그리기
 
-<img width="2560" height="1440" alt="2026-07-01_01 37 00" src="https://github.com/user-attachments/assets/9d0feb92-8fce-4dc3-ae22-2262b658a7b2" />
+<img width="2560" height="1440" alt="2026-07-01_01 37 00" src="https://github.com/user-attachments/assets/260136a9-5e8e-4231-8b23-9b3a499db87d" />
 
 ### 색상 팔레트
 
-<img width="2560" height="1440" alt="2026-07-01_01 37 57" src="https://github.com/user-attachments/assets/c8c51ca6-8eb0-4d88-9220-d8451d3eddac" />
+<img width="2560" height="1440" alt="2026-07-01_01 37 57" src="https://github.com/user-attachments/assets/a3185aa1-a8e9-4f46-bec8-bea0864bc908" />
 
 ### 갤러리
 
-<img width="2560" height="1440" alt="2026-07-01_01 38 37" src="https://github.com/user-attachments/assets/8ec8f523-bac8-4ae5-aa2d-9573ca208b7f" />
+<img width="2560" height="1440" alt="2026-07-01_01 38 37" src="https://github.com/user-attachments/assets/8ac488bc-2969-4434-8817-a10bc00ad75b" />
 
 ### 작품 전시
 
-<img width="2560" height="1440" alt="image" src="https://github.com/user-attachments/assets/7c6256dd-845e-407c-b9c6-fdf2586d93e0" />
-<img width="2560" height="1440" alt="image" src="https://github.com/user-attachments/assets/c05acd32-2600-48a0-97a4-d052ad014d98" />
-<img width="2560" height="1440" alt="image" src="https://github.com/user-attachments/assets/5af4eb65-a080-4695-86b7-d7b63dce03b2" />
+<img width="2560" height="1440" alt="2026-07-01_01 39 47" src="https://github.com/user-attachments/assets/3e64383a-3e4d-466d-8d8e-eb8ce8a55790" />
+<img width="2560" height="1440" alt="2026-07-01_01 40 00" src="https://github.com/user-attachments/assets/78e8fd06-68ce-4685-a0d4-57e20b7117a5" />
+<img width="2560" height="1440" alt="2026-07-01_01 40 15" src="https://github.com/user-attachments/assets/6b1894a1-c1fd-43e2-9c32-8e70711ca629" />
 
 ## 요구 사항
 
