@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+AGENTS.md
+*.log
+.ai-worklog
+
+# Local server/runtime data
+run/
+server/
+plugins/

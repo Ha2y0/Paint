@@ -1,0 +1,19 @@
+name: Paint
+version: '${version}'
+
+main: org.ha2yo.paint.Paint
+api-version: '1.21'
+load: POSTWORLD
+
+commands:
+  paint:
+    description: Paint canvas commands
+    usage: /paint [new|clear|remove|save|list|show|exhibits|brush|color|station]
+
+permissions:
+  paint.use:
+    description: Allows using Paint canvases
+    default: true
+  paint.admin:
+    description: Allows managing Paint admin commands and manual stations
+    default: op
