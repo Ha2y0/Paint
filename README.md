@@ -15,6 +15,7 @@ Minecraft Paper 서버에서 그림판 기능을 제공하는 플러그인입니
 - [권한](#권한)
 - [설정](#설정)
 - [저장 구조](#저장-구조)
+- [References](#references)
 - [개발자 API](#개발자-api)
 
 ## 주요 기능
@@ -275,6 +276,14 @@ plugins/Paint/
 | `artworks/metadata` | 그림 이름, 작가, 크기, 이미지 경로 같은 메타데이터입니다. |
 | `artworks/images` | 실제 PNG 그림 파일입니다. |
 | `artworks/images/layers` | 편집 복원을 위한 레이어 데이터입니다. |
+
+## References
+
+RGB 지도 렌더링 구현 과정에서 다음 리포지터리를 참고했습니다.
+
+- [biryeongtrain/RGBMapUtils](https://github.com/biryeongtrain/RGBMapUtils)
+
+Paint는 RGBMapUtils를 직접 의존성으로 포함하지 않으며, 별도의 Paper 플러그인으로 구현되어 있습니다.
 
 ## 개발자 API
 
