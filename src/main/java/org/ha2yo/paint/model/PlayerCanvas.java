@@ -20,6 +20,7 @@ public final class PlayerCanvas {
     private final Set<BlockKey> blocks = new HashSet<>();
     private final Set<UUID> frameIds = new HashSet<>();
     private final Set<UUID> editorIds = new HashSet<>();
+    private final Set<UUID> hiddenViewerIds = new HashSet<>();
     private final List<CanvasMapTile> mapTiles = new ArrayList<>();
     private final Map<UUID, int[]> sentTileVersionsByPlayer = new HashMap<>();
     private final Deque<PixelCanvas.LayerSnapshot> undoSnapshots = new ArrayDeque<>();
@@ -54,6 +55,21 @@ public final class PlayerCanvas {
 
     public Set<UUID> editorIds() {
         return Set.copyOf(editorIds);
+    }
+
+    public boolean isHiddenFor(UUID playerId) {
+        return playerId != null && hiddenViewerIds.contains(playerId);
+    }
+
+    public void setVisibleFor(UUID playerId, boolean visible) {
+        if (playerId == null) {
+            return;
+        }
+        if (visible) {
+            hiddenViewerIds.remove(playerId);
+        } else {
+            hiddenViewerIds.add(playerId);
+        }
     }
 
     public UUID ownerId() {

@@ -32,7 +32,7 @@ final class PaintCoreBootstrap {
         coreRuntime.artworkIdKey = new NamespacedKey(c.plugin(), "artwork_id");
         coreRuntime.previewActionKey = new NamespacedKey(c.plugin(), "preview_action");
         coreRuntime.transientCleanup = new PaintTransientCleanupService(PaintApplication.PAINT_TRANSIENT_ENTITY_TAGS, PaintApplication.CANVAS_FRAME_TAG, PaintApplication.EXHIBIT_DISPLAY_TAG);
-        canvasRuntime.canvasLifecycle = new CanvasLifecycleService(PaintApplication.CANVAS_FRAME_TAG);
+        canvasRuntime.canvasLifecycle = new CanvasLifecycleService(c.plugin(), PaintApplication.CANVAS_FRAME_TAG);
         coreRuntime.toolItems = new ToolItemService(coreRuntime.paletteColorKey, coreRuntime.brushSizeDeltaKey, coreRuntime.brushSizeValueKey, coreRuntime.toolKey);
         coreRuntime.paintMenus = new PaintMenuService(coreRuntime.menuActionKey, coreRuntime.artworkIdKey);
         coreRuntime.featureService = new PaintControllerFeatureService(
@@ -55,8 +55,10 @@ final class PaintCoreBootstrap {
                 () -> artworkRuntime.artworkGalleryWorkflow,
                 () -> artworkRuntime.artworkSaveWorkflow,
                 () -> placementRuntime.placementPreviews,
+                () -> canvasRuntime.layerWorkflow,
                 () -> canvasRuntime.paletteBoards,
-                () -> artworkRuntime.artworkDisplays
+                () -> artworkRuntime.artworkDisplays,
+                () -> canvasRuntime.canvasMaps
         );
         panelRuntime.paintPanels = new PaintPanelService(c.plugin(), PaintApplication.BACKGROUND_COLOR, coreRuntime.featureService::shaderRgbEnabled);
         panelRuntime.paintPanelModes = new PaintPanelModeService(

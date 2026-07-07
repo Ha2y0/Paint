@@ -40,6 +40,7 @@ public final class CanvasEventWorkflowService {
     private final Predicate<Player> canvasPlacementSwingHandler;
     private final Predicate<Player> artworkPlacementSwingHandler;
     private final Predicate<Player> palettePlacementSwingHandler;
+    private final Predicate<Player> manualStationPlacementSwingHandler;
     private final Predicate<Player> layerOpacityInteractionLockChecker;
 
     public CanvasEventWorkflowService(
@@ -59,6 +60,7 @@ public final class CanvasEventWorkflowService {
             Predicate<Player> canvasPlacementSwingHandler,
             Predicate<Player> artworkPlacementSwingHandler,
             Predicate<Player> palettePlacementSwingHandler,
+            Predicate<Player> manualStationPlacementSwingHandler,
             Predicate<Player> layerOpacityInteractionLockChecker
     ) {
         this.toolModeGuards = toolModeGuards;
@@ -77,6 +79,7 @@ public final class CanvasEventWorkflowService {
         this.canvasPlacementSwingHandler = canvasPlacementSwingHandler;
         this.artworkPlacementSwingHandler = artworkPlacementSwingHandler;
         this.palettePlacementSwingHandler = palettePlacementSwingHandler;
+        this.manualStationPlacementSwingHandler = manualStationPlacementSwingHandler;
         this.layerOpacityInteractionLockChecker = layerOpacityInteractionLockChecker;
     }
 
@@ -86,6 +89,10 @@ public final class CanvasEventWorkflowService {
             return;
         }
         if (palettePlacementSwingHandler.test(player)) {
+            event.setCancelled(true);
+            return;
+        }
+        if (manualStationPlacementSwingHandler.test(player)) {
             event.setCancelled(true);
             return;
         }
@@ -127,6 +134,9 @@ public final class CanvasEventWorkflowService {
             return;
         }
         if (palettePlacementSwingHandler.test(player)) {
+            return;
+        }
+        if (manualStationPlacementSwingHandler.test(player)) {
             return;
         }
         if (artworkPreviewLeftClickHandler.test(player)) {

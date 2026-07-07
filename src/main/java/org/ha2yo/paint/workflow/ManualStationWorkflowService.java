@@ -2,17 +2,26 @@ package org.ha2yo.paint.workflow;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
+import org.bukkit.event.block.Action;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 import org.ha2yo.paint.api.PaintCanvas;
 import org.ha2yo.paint.Paint;
+import org.ha2yo.paint.manager.InventorySnapshot;
+import org.ha2yo.paint.mode.PlayerModeStore;
 import org.ha2yo.paint.model.PaintArtwork;
 import org.ha2yo.paint.model.PixelCanvas;
 import org.ha2yo.paint.model.PlayerCanvas;
+import org.ha2yo.paint.model.session.ArtworkPlacementCandidate;
 import org.ha2yo.paint.model.station.ManualStation;
 import org.ha2yo.paint.model.station.StationCanvasSlot;
 import org.ha2yo.paint.model.station.StationPanelSlot;
@@ -23,12 +32,14 @@ import org.ha2yo.paint.service.PaintMenuService;
 import org.ha2yo.paint.service.PaintPanelModeService;
 import org.ha2yo.paint.service.PaintPanelService;
 import org.ha2yo.paint.service.PaintWindowPlacementService;
+import org.ha2yo.paint.service.PlacementPreviewService;
 
 import java.awt.Color;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -36,13 +47,21 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public final class ManualStationWorkflowService {
     private static final DateTimeFormatter AUTO_SAVE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final double MANUAL_GALLERY_CENTER_OFFSET = 2.5D;
+    private static final int MANUAL_GALLERY_BLOCK_WIDTH = 6;
+    private static final int MANUAL_GALLERY_BLOCK_HEIGHT = 6;
+    private static final long PLACEMENT_ARM_DELAY_MILLIS = 200L;
 
     private final Paint plugin;
+    private final PlayerModeStore<ManualStationPlacementSession> placementSessions = new PlayerModeStore<>();
     private final ManualStationService stations;
+    private final NamespacedKey previewActionKey;
+    private final int toolSlot;
+    private final String previewAction;
     private final CanvasLifecycleService canvasLifecycle;
     private final CanvasWorkflowService canvasWorkflow;
     private final CanvasMapRenderService canvasMapRenderer;
@@ -51,6 +70,7 @@ public final class ManualStationWorkflowService {
     private final PaintPanelModeService paintPanelModes;
     private final ArtworkGalleryWorkflowService artworkGalleryWorkflow;
     private final ArtworkSaveWorkflowService artworkSaveWorkflow;
+    private final Supplier<PlacementPreviewService> placementPreviews;
     private final Function<UUID, Optional<PaintCanvas>> canvasResolver;
     private final Predicate<Player> freeModeChecker;
     private final Consumer<Player> toolGiver;
@@ -64,6 +84,9 @@ public final class ManualStationWorkflowService {
     public ManualStationWorkflowService(
             Paint plugin,
             ManualStationService stations,
+            NamespacedKey previewActionKey,
+            int toolSlot,
+            String previewAction,
             CanvasLifecycleService canvasLifecycle,
             CanvasWorkflowService canvasWorkflow,
             CanvasMapRenderService canvasMapRenderer,
@@ -72,6 +95,7 @@ public final class ManualStationWorkflowService {
             PaintPanelModeService paintPanelModes,
             ArtworkGalleryWorkflowService artworkGalleryWorkflow,
             ArtworkSaveWorkflowService artworkSaveWorkflow,
+            Supplier<PlacementPreviewService> placementPreviews,
             Function<UUID, Optional<PaintCanvas>> canvasResolver,
             Predicate<Player> freeModeChecker,
             Consumer<Player> toolGiver,
@@ -83,6 +107,9 @@ public final class ManualStationWorkflowService {
     ) {
         this.plugin = plugin;
         this.stations = stations;
+        this.previewActionKey = previewActionKey;
+        this.toolSlot = toolSlot;
+        this.previewAction = previewAction;
         this.canvasLifecycle = canvasLifecycle;
         this.canvasWorkflow = canvasWorkflow;
         this.canvasMapRenderer = canvasMapRenderer;
@@ -91,6 +118,7 @@ public final class ManualStationWorkflowService {
         this.paintPanelModes = paintPanelModes;
         this.artworkGalleryWorkflow = artworkGalleryWorkflow;
         this.artworkSaveWorkflow = artworkSaveWorkflow;
+        this.placementPreviews = placementPreviews;
         this.canvasResolver = canvasResolver;
         this.freeModeChecker = freeModeChecker;
         this.toolGiver = toolGiver;
@@ -169,6 +197,7 @@ public final class ManualStationWorkflowService {
     }
 
     public void onQuit(Player player) {
+        endPlacement(player, false);
         if (isFreeMode(player)) {
             return;
         }
@@ -196,36 +225,265 @@ public final class ManualStationWorkflowService {
         if (isStationInUse(player, stationId)) {
             return;
         }
-        Block target = player.getTargetBlockExact(10);
-        if (target == null) {
-            player.sendMessage(ChatColor.RED + "캔버스를 둘 기준 블록을 바라봐 주세요.");
-            return;
-        }
-        BlockFace facing = paintWindows.cardinalFace(player);
-        StationCanvasSlot slot = StationCanvasSlot.from(
-                target.getLocation(),
-                facing,
-                paintWindows.rightOf(facing),
-                blockSizeClamp.applyAsInt(width),
-                blockSizeClamp.applyAsInt(height)
+        startPlacement(
+                player,
+                new ManualStationPlacementSession(
+                        PlacementType.CANVAS,
+                        stationId,
+                        blockSizeClamp.applyAsInt(width),
+                        blockSizeClamp.applyAsInt(height),
+                        StationPanelSlot.Layout.HORIZONTAL,
+                        List.of(),
+                        null,
+                        null,
+                        System.currentTimeMillis()
+                ),
+                "수동 캔버스를 설치할 공간을 바라보고 우클릭을 눌러 저장하세요. (좌클릭: 취소)"
         );
-        try {
-            ManualStation station = stations.putCanvas(stationId, slot);
-            spawnBlankCanvas(station);
-            player.sendMessage(ChatColor.GREEN + "수동 캔버스 위치를 저장했습니다. " + ChatColor.WHITE + station.id());
-        } catch (IOException e) {
-            player.sendMessage(ChatColor.RED + "수동 캔버스 위치 저장에 실패했습니다.");
-        }
     }
 
     public void setGallerySlot(Player player, String stationId) {
         if (isStationInUse(player, stationId)) {
             return;
         }
+        startPlacement(
+                player,
+                new ManualStationPlacementSession(
+                        PlacementType.GALLERY,
+                        stationId,
+                        MANUAL_GALLERY_BLOCK_WIDTH,
+                        MANUAL_GALLERY_BLOCK_HEIGHT,
+                        StationPanelSlot.Layout.HORIZONTAL,
+                        List.of(),
+                        null,
+                        null,
+                        System.currentTimeMillis()
+                ),
+                "수동 갤러리 위치를 바라보고 우클릭을 눌러 저장하세요. (좌클릭: 취소)"
+        );
+    }
+
+    public void setControlSlot(Player player, String stationId, StationPanelSlot.Layout layout) {
+        if (isStationInUse(player, stationId)) {
+            return;
+        }
+        StationPanelSlot.Layout normalizedLayout = layout == null ? StationPanelSlot.Layout.HORIZONTAL : layout;
+        startPlacement(
+                player,
+                new ManualStationPlacementSession(
+                        PlacementType.CONTROL,
+                        stationId,
+                        normalizedLayout == StationPanelSlot.Layout.VERTICAL ? 1 : 2,
+                        normalizedLayout == StationPanelSlot.Layout.VERTICAL ? 2 : 1,
+                        normalizedLayout,
+                        List.of(),
+                        null,
+                        null,
+                        System.currentTimeMillis()
+                ),
+                "수동 조작판을 붙일 벽을 바라보고 우클릭을 눌러 저장하세요. (좌클릭: 취소)"
+        );
+    }
+
+    public boolean isPlacementActive(UUID playerId) {
+        return placementSessions.contains(playerId);
+    }
+
+    public boolean handlePlacementInteract(Player player, Action action) {
+        ManualStationPlacementSession session = placementSessions.get(player.getUniqueId());
+        if (session == null) {
+            return false;
+        }
+        if (!session.isArmed(System.currentTimeMillis())) {
+            return true;
+        }
+        if (action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK) {
+            endPlacement(player, true);
+            return true;
+        }
+        if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
+            confirmPlacement(player);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean handlePlacementSwing(Player player) {
+        ManualStationPlacementSession session = placementSessions.get(player.getUniqueId());
+        if (session == null) {
+            return false;
+        }
+        if (!session.isArmed(System.currentTimeMillis())) {
+            return true;
+        }
+        endPlacement(player, true);
+        return true;
+    }
+
+    public void updatePlacementPreviews() {
+        if (placementSessions.isEmpty()) {
+            return;
+        }
+        for (UUID playerId : placementSessions.playerIds()) {
+            Player player = plugin.getServer().getPlayer(playerId);
+            if (player == null || !player.isOnline()) {
+                removePlacementSession(playerId);
+                continue;
+            }
+            updatePlacementPreview(player);
+        }
+    }
+
+    public void clearPlacementPreviews() {
+        for (ManualStationPlacementSession session : placementSessions.sessions()) {
+            removePlacementDisplays(session);
+        }
+        placementSessions.clearSessions();
+        placementSessions.clearInventories();
+    }
+
+    public void endPlacement(Player player, boolean sendCancelMessage) {
+        if (finishPlacement(player) && sendCancelMessage) {
+            player.sendMessage(ChatColor.YELLOW + "수동 자리 위치 저장을 취소했습니다.");
+        }
+    }
+
+    private void startPlacement(Player player, ManualStationPlacementSession session, String message) {
+        endPlacement(player, false);
+        placementSessions.put(player.getUniqueId(), session);
+        givePlacementTool(player);
+        updatePlacementPreview(player);
+        player.sendMessage(ChatColor.YELLOW + message);
+    }
+
+    public void ensurePlacementTool(Player player) {
+        if (!placementSessions.contains(player.getUniqueId())) {
+            return;
+        }
+        player.getInventory().setItem(toolSlot, placementTool());
+        player.getInventory().setHeldItemSlot(toolSlot);
+        player.updateInventory();
+    }
+
+    private boolean confirmPlacement(Player player) {
+        UUID playerId = player.getUniqueId();
+        ManualStationPlacementSession session = placementSessions.get(playerId);
+        if (session == null) {
+            return false;
+        }
+
+        updatePlacementPreview(player);
+        session = placementSessions.get(playerId);
+        ArtworkPlacementCandidate candidate = session == null ? null : session.lastCandidate();
+        if (session == null || candidate == null || !candidate.valid()) {
+            player.sendMessage(ChatColor.RED + "이 위치에는 수동 자리 요소를 설치할 수 없습니다.");
+            return true;
+        }
+
+        try {
+            if (session.type() == PlacementType.CANVAS) {
+                StationCanvasSlot slot = StationCanvasSlot.from(
+                        candidate.origin().getLocation(),
+                        candidate.facing(),
+                        candidate.right(),
+                        session.width(),
+                        session.height()
+                );
+                ManualStation station = stations.putCanvas(session.stationId(), slot);
+                spawnBlankCanvas(station);
+                player.sendMessage(ChatColor.GREEN + "수동 캔버스 위치를 저장했습니다. " + ChatColor.WHITE + station.id());
+            } else if (session.type() == PlacementType.GALLERY) {
+                ManualStation station = stations.putGallery(session.stationId(), session.panelSlot());
+                player.sendMessage(ChatColor.GREEN + "수동 갤러리 위치를 저장했습니다. " + ChatColor.WHITE + station.id());
+            } else {
+                ManualStation station = stations.putControl(session.stationId(), session.panelSlot());
+                player.sendMessage(ChatColor.GREEN + "수동 조작판 위치를 저장했습니다. " + ChatColor.WHITE + station.id());
+            }
+            finishPlacement(player);
+        } catch (IOException e) {
+            player.sendMessage(ChatColor.RED + "수동 자리 위치 저장에 실패했습니다.");
+        }
+        return true;
+    }
+
+    private void givePlacementTool(Player player) {
+        placementSessions.captureInventoryIfAbsent(player);
+        clearInventory(player);
+        ensurePlacementTool(player);
+    }
+
+    private void clearInventory(Player player) {
+        player.getInventory().clear();
+        player.getInventory().setArmorContents(new ItemStack[4]);
+        player.getInventory().setExtraContents(new ItemStack[player.getInventory().getExtraContents().length]);
+        player.setItemOnCursor(null);
+    }
+
+    private boolean finishPlacement(Player player) {
+        UUID playerId = player.getUniqueId();
+        ManualStationPlacementSession session = placementSessions.remove(playerId);
+        removePlacementDisplays(session);
+        InventorySnapshot snapshot = placementSessions.removeInventory(playerId);
+        if (snapshot != null) {
+            snapshot.restore(player);
+            player.updateInventory();
+        }
+        return session != null;
+    }
+
+    private ItemStack placementTool() {
+        ItemStack item = new ItemStack(Material.BREEZE_ROD);
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(ChatColor.AQUA + "수동 자리 설치/취소");
+        meta.getPersistentDataContainer().set(previewActionKey, PersistentDataType.STRING, previewAction);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private void updatePlacementPreview(Player player) {
+        UUID playerId = player.getUniqueId();
+        ManualStationPlacementSession session = placementSessions.get(playerId);
+        if (session == null) {
+            return;
+        }
+
+        CandidateWithPanel candidate = placementCandidate(player, session);
+        ArtworkPlacementCandidate placement = candidate == null ? null : candidate.candidate();
+        StationPanelSlot panelSlot = candidate == null ? null : candidate.panelSlot();
+        if ((placement == null && session.lastCandidate() == null)
+                || (placement != null && placement.equals(session.lastCandidate()))) {
+            return;
+        }
+
+        removePlacementDisplays(session);
+        PlacementPreviewService previews = placementPreviews.get();
+        List<UUID> displayIds = placement == null || previews == null
+                ? List.of()
+                : previews.spawnDisplays(playerId, placement, session.width(), session.height());
+        placementSessions.put(playerId, session.withPreview(displayIds, placement, panelSlot));
+    }
+
+    private CandidateWithPanel placementCandidate(Player player, ManualStationPlacementSession session) {
+        return switch (session.type()) {
+            case CANVAS -> canvasPlacementCandidate(player, session);
+            case GALLERY -> galleryPlacementCandidate(player);
+            case CONTROL -> controlPlacementCandidate(player, session.layout());
+        };
+    }
+
+    private CandidateWithPanel canvasPlacementCandidate(Player player, ManualStationPlacementSession session) {
+        PlacementPreviewService previews = placementPreviews.get();
+        if (previews == null) {
+            return null;
+        }
+        ArtworkPlacementCandidate candidate = previews.canvasCandidate(player, session.width(), session.height(), 10);
+        return new CandidateWithPanel(candidate, null);
+    }
+
+    private CandidateWithPanel galleryPlacementCandidate(Player player) {
         Block target = player.getTargetBlockExact(10);
         if (target == null) {
-            player.sendMessage(ChatColor.RED + "갤러리의 좌측하단이 될 블록을 바라봐 주세요.");
-            return;
+            return null;
         }
         BlockFace facing = paintWindows.cardinalFace(player);
         BlockFace front = facing.getOppositeFace();
@@ -238,39 +496,59 @@ public final class ManualStationWorkflowService {
         Location anchor = new Location(player.getWorld(), center.getX(), center.getY(), center.getZ());
         anchor.setYaw(player.getLocation().getYaw());
         anchor.setPitch(0.0F);
-        try {
-            ManualStation station = stations.putGallery(stationId, StationPanelSlot.from(anchor, facing));
-            player.sendMessage(ChatColor.GREEN + "수동 갤러리 위치를 저장했습니다. " + ChatColor.WHITE + station.id());
-        } catch (IOException e) {
-            player.sendMessage(ChatColor.RED + "수동 갤러리 위치 저장에 실패했습니다.");
-        }
+        ArtworkPlacementCandidate candidate = new ArtworkPlacementCandidate(
+                player.getWorld(),
+                target,
+                facing,
+                right,
+                BlockFace.UP,
+                true,
+                true
+        );
+        return new CandidateWithPanel(candidate, StationPanelSlot.from(anchor, facing));
     }
 
-    public void setControlSlot(Player player, String stationId, StationPanelSlot.Layout layout) {
-        if (isStationInUse(player, stationId)) {
-            return;
-        }
+    private CandidateWithPanel controlPlacementCandidate(Player player, StationPanelSlot.Layout layout) {
         RayTraceResult hit = player.rayTraceBlocks(10.0D);
         if (hit == null || hit.getHitBlock() == null || hit.getHitBlockFace() == null) {
-            player.sendMessage(ChatColor.RED + "조작판을 붙일 벽을 바라봐 주세요.");
-            return;
+            return null;
         }
         BlockFace front = hit.getHitBlockFace();
         BlockFace facing = front.getOppositeFace();
         if (facing.getModY() != 0) {
-            player.sendMessage(ChatColor.RED + "조작판은 벽에만 설치할 수 있습니다.");
-            return;
+            return null;
         }
         Vector center = hit.getHitBlock().getRelative(front).getLocation().toVector()
                 .add(new Vector(0.5D, 0.5D, 0.5D));
         Location anchor = new Location(player.getWorld(), center.getX(), center.getY(), center.getZ());
         anchor.setYaw(player.getLocation().getYaw());
         anchor.setPitch(0.0F);
-        try {
-            ManualStation station = stations.putControl(stationId, StationPanelSlot.from(anchor, facing, layout));
-            player.sendMessage(ChatColor.GREEN + "수동 조작판 위치를 저장했습니다. " + ChatColor.WHITE + station.id());
-        } catch (IOException e) {
-            player.sendMessage(ChatColor.RED + "수동 조작판 위치 저장에 실패했습니다.");
+        ArtworkPlacementCandidate candidate = new ArtworkPlacementCandidate(
+                player.getWorld(),
+                hit.getHitBlock(),
+                facing,
+                paintWindows.rightOf(facing),
+                BlockFace.UP,
+                true,
+                true
+        );
+        return new CandidateWithPanel(candidate, StationPanelSlot.from(anchor, facing, layout));
+    }
+
+    private boolean removePlacementSession(UUID playerId) {
+        ManualStationPlacementSession session = placementSessions.remove(playerId);
+        removePlacementDisplays(session);
+        placementSessions.removeInventory(playerId);
+        return session != null;
+    }
+
+    private void removePlacementDisplays(ManualStationPlacementSession session) {
+        if (session == null) {
+            return;
+        }
+        PlacementPreviewService previews = placementPreviews.get();
+        if (previews != null) {
+            previews.removeDisplays(session.displayIds());
         }
     }
 
@@ -300,7 +578,7 @@ public final class ManualStationWorkflowService {
     public void removeStation(Player player, String stationId) {
         stations.station(stationId).ifPresent(station -> {
             if (station.canvas() != null) {
-                canvasLifecycle.remove(stations.blankOwnerId(station.id()));
+                canvasLifecycle.remove(stations.blankOwnerId(station.id()), false);
             }
         });
         try {
@@ -333,7 +611,7 @@ public final class ManualStationWorkflowService {
             player.sendMessage(ChatColor.RED + "캔버스 월드를 찾을 수 없습니다.");
             return;
         }
-        canvasLifecycle.remove(stations.blankOwnerId(station.id()));
+        canvasLifecycle.remove(stations.blankOwnerId(station.id()), false);
         canvasWorkflow.create(
                 player.getUniqueId(),
                 origin,
@@ -436,5 +714,38 @@ public final class ManualStationWorkflowService {
 
     private String yesNo(boolean value) {
         return value ? "Y" : "N";
+    }
+
+    private enum PlacementType {
+        CANVAS,
+        GALLERY,
+        CONTROL
+    }
+
+    private record CandidateWithPanel(ArtworkPlacementCandidate candidate, StationPanelSlot panelSlot) {
+    }
+
+    private record ManualStationPlacementSession(
+            PlacementType type,
+            String stationId,
+            int width,
+            int height,
+            StationPanelSlot.Layout layout,
+            List<UUID> displayIds,
+            ArtworkPlacementCandidate lastCandidate,
+            StationPanelSlot panelSlot,
+            long armedAtMillis
+    ) {
+        ManualStationPlacementSession withPreview(
+                List<UUID> displayIds,
+                ArtworkPlacementCandidate candidate,
+                StationPanelSlot panelSlot
+        ) {
+            return new ManualStationPlacementSession(type, stationId, width, height, layout, displayIds, candidate, panelSlot, armedAtMillis);
+        }
+
+        boolean isArmed(long now) {
+            return now >= armedAtMillis + PLACEMENT_ARM_DELAY_MILLIS;
+        }
     }
 }

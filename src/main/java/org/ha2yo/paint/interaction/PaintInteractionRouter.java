@@ -36,7 +36,8 @@ public final class PaintInteractionRouter {
         if ((facade.isExhibitRemovalModeActive(player.getUniqueId())
                 || facade.isCanvasPlacementModeActive(player.getUniqueId())
                 || facade.isArtworkPlacementModeActive(player.getUniqueId())
-                || facade.isPalettePlacementModeActive(player.getUniqueId()))
+                || facade.isPalettePlacementModeActive(player.getUniqueId())
+                || facade.isManualStationPlacementActive(player.getUniqueId()))
                 && !facade.isPrimaryUseHand(event.getHand(), player)) {
             event.setCancelled(true);
             return;
@@ -54,6 +55,10 @@ public final class PaintInteractionRouter {
             return;
         }
         if (facade.handlePalettePlacementInteract(player, action)) {
+            event.setCancelled(true);
+            return;
+        }
+        if (facade.handleManualStationPlacementInteract(player, action)) {
             event.setCancelled(true);
             return;
         }
@@ -227,6 +232,11 @@ public final class PaintInteractionRouter {
         if (facade.isPalettePlacementModeActive(player.getUniqueId())) {
             event.setCancelled(true);
             facade.endPalettePlacementPreview(player, true);
+            return;
+        }
+        if (facade.isManualStationPlacementActive(player.getUniqueId())) {
+            event.setCancelled(true);
+            facade.endManualStationPlacementPreview(player, true);
             return;
         }
         if (facade.isExhibitRemovalModeActive(player.getUniqueId())) {

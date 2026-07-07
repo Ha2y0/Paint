@@ -139,6 +139,14 @@ public final class DefaultPaintService implements PaintService {
     }
 
     @Override
+    public boolean setCanvasVisibleFor(UUID ownerId, Player viewer, boolean visible) {
+        if (ownerId == null || viewer == null) {
+            return false;
+        }
+        return featureService.get().setCanvasVisibleFor(ownerId, viewer, visible);
+    }
+
+    @Override
     public Optional<Color> selectedColor(UUID playerId) {
         if (playerId == null) {
             return Optional.empty();
@@ -172,8 +180,7 @@ public final class DefaultPaintService implements PaintService {
         if (playerId == null) {
             return false;
         }
-        paletteAccessOwners.get().add(playerId);
-        return true;
+        return paletteAccessOwners.get().add(playerId);
     }
 
     @Override

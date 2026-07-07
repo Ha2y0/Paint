@@ -59,6 +59,8 @@ final class PaintRuntimeInteractionBootstrap {
                 placementRuntime.placementUiWorkflow::handleCanvasSwing,
                 placementRuntime.placementUiWorkflow::handleArtworkSwing,
                 canvasRuntime.paletteWorkflow::handlePlacementSwing,
+                player -> panelRuntime.manualStationWorkflow != null
+                        && panelRuntime.manualStationWorkflow.handlePlacementSwing(player),
                 canvasRuntime.paletteLayerWorkflow::hasLayerOpacityInteractionLock
         );
         panelRuntime.playerLifecycleWorkflow = new PlayerLifecycleWorkflowService(
@@ -101,6 +103,7 @@ final class PaintRuntimeInteractionBootstrap {
                 canvasRuntime.paletteWorkflow,
                 artworkRuntime.artworkGalleryWorkflow,
                 drawingRuntime.advancedToolWorkflow,
+                panelRuntime.manualStationWorkflow,
                 drawingRuntime.paintingInteractions,
                 PaintApplication.PAINT_PANEL_INTERACTION_DISTANCE,
                 coreRuntime.featureService::clearStrokeState

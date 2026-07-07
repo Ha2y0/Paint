@@ -5,6 +5,12 @@ import java.awt.Color;
 final class RgbMapEncoder {
     private static final int RGB_BLOCK_SIZE = 2;
     private static final int MAP_COLOR_OFFSET = 4;
+    private static final Color[] SIGNATURE_COLORS = {
+            new Color(0x12, 0x34, 0x56),
+            new Color(0xC3, 0xA5, 0x7E),
+            new Color(0x5A, 0xC0, 0xDE),
+            new Color(0xE1, 0x2D, 0x09)
+    };
 
     private RgbMapEncoder() {
     }
@@ -20,7 +26,20 @@ final class RgbMapEncoder {
                 writePixel(indexes, width, height, x, y, colors[y * width + x]);
             }
         }
+        writeSignature(indexes, width, height);
         return indexes;
+    }
+
+    static void writeSignature(byte[] indexes, int width, int height) {
+        if (width < RGB_BLOCK_SIZE * 2 || height < RGB_BLOCK_SIZE * 2) {
+            return;
+        }
+
+        for (int i = 0; i < SIGNATURE_COLORS.length; i++) {
+            int blockX = (i % 2) * RGB_BLOCK_SIZE;
+            int blockY = (i / 2) * RGB_BLOCK_SIZE;
+            writePixel(indexes, width, height, blockX, blockY, SIGNATURE_COLORS[i]);
+        }
     }
 
     static void writePixel(byte[] indexes, int width, int height, int x, int y, Color color) {

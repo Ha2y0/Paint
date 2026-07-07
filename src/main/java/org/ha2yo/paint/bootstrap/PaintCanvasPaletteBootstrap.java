@@ -28,7 +28,12 @@ final class PaintCanvasPaletteBootstrap {
         artworkRuntime.artworkStorage.load();
         artworkRuntime.artworkSaveDialogs = new ArtworkSaveDialogService(c.plugin(), PaintApplication.ARTWORK_NAME_INPUT_KEY);
         artworkRuntime.artworkImages = new ArtworkImageService(PaintApplication.MAP_SIZE, PaintApplication.BACKGROUND_COLOR);
-        artworkRuntime.artworkDisplays = new ArtworkDisplayService(c.plugin(), PaintApplication.MAP_SIZE, PaintApplication.BACKGROUND_COLOR, coreRuntime.featureService::shaderRgbEnabled);
+        artworkRuntime.artworkDisplays = new ArtworkDisplayService(
+                c.plugin(),
+                PaintApplication.MAP_SIZE,
+                PaintApplication.BACKGROUND_COLOR,
+                coreRuntime.featureService::displayShaderRgbEnabled
+        );
         artworkRuntime.artworkDisplays.load();
         canvasRuntime.canvasMaps = new CanvasMapSyncService(
                 c.plugin(),

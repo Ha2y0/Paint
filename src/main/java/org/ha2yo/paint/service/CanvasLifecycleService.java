@@ -9,6 +9,8 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.entity.Player;
 import org.ha2yo.paint.model.BlockKey;
 import org.ha2yo.paint.model.CanvasPlane;
 import org.ha2yo.paint.model.PixelCanvas;
@@ -22,13 +24,15 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class CanvasLifecycleService {
+    private final Plugin plugin;
     private final String canvasFrameTag;
     private final Map<UUID, PlayerCanvas> canvases = new HashMap<>();
     private final Map<BlockKey, PlayerCanvas> blockCanvases = new HashMap<>();
     private final Map<UUID, PlayerCanvas> frameCanvases = new HashMap<>();
     private final Set<BlockKey> generatedCanvasBlocks = new HashSet<>();
 
-    public CanvasLifecycleService(String canvasFrameTag) {
+    public CanvasLifecycleService(Plugin plugin, String canvasFrameTag) {
+        this.plugin = plugin;
         this.canvasFrameTag = canvasFrameTag;
     }
 
@@ -65,6 +69,10 @@ public final class CanvasLifecycleService {
     }
 
     public PlayerCanvas remove(UUID ownerId) {
+        return remove(ownerId, true);
+    }
+
+    public PlayerCanvas remove(UUID ownerId, boolean clearBlocks) {
         PlayerCanvas canvas = canvases.remove(ownerId);
         if (canvas == null) {
             return null;
@@ -81,7 +89,9 @@ public final class CanvasLifecycleService {
             blockCanvases.remove(blockKey);
             World world = Bukkit.getServer().getWorld(blockKey.worldId());
             if (world != null && generatedCanvasBlocks.remove(blockKey)) {
-                world.getBlockAt(blockKey.x(), blockKey.y(), blockKey.z()).setType(Material.AIR, false);
+                if (clearBlocks) {
+                    world.getBlockAt(blockKey.x(), blockKey.y(), blockKey.z()).setType(Material.AIR, false);
+                }
             }
         }
         return canvas;
@@ -111,6 +121,27 @@ public final class CanvasLifecycleService {
     public boolean revokeEditAccess(UUID ownerId, UUID editorId) {
         PlayerCanvas canvas = canvases.get(ownerId);
         return canvas != null && canvas.revokeEditor(editorId);
+    }
+
+    public boolean setCanvasVisibleFor(UUID ownerId, Player viewer, boolean visible) {
+        PlayerCanvas canvas = canvases.get(ownerId);
+        if (canvas == null || viewer == null) {
+            return false;
+        }
+
+        canvas.setVisibleFor(viewer.getUniqueId(), visible);
+        for (UUID frameId : canvas.frameIds()) {
+            Entity entity = Bukkit.getEntity(frameId);
+            if (entity == null) {
+                continue;
+            }
+            if (visible) {
+                viewer.showEntity(plugin, entity);
+            } else {
+                viewer.hideEntity(plugin, entity);
+            }
+        }
+        return true;
     }
 
     public boolean hasBlock(BlockKey key) {

@@ -27,6 +27,7 @@ public final class PaintTickWorkflowService {
     private final PaletteWorkflowService paletteWorkflow;
     private final ArtworkGalleryWorkflowService artworkGalleryWorkflow;
     private final AdvancedToolWorkflowService advancedToolWorkflow;
+    private final ManualStationWorkflowService manualStationWorkflow;
     private final PaintingInteractionWorkflowService paintingInteractions;
     private final double paintPanelInteractionDistance;
     private final Runnable strokeStateCleaner;
@@ -44,6 +45,7 @@ public final class PaintTickWorkflowService {
             PaletteWorkflowService paletteWorkflow,
             ArtworkGalleryWorkflowService artworkGalleryWorkflow,
             AdvancedToolWorkflowService advancedToolWorkflow,
+            ManualStationWorkflowService manualStationWorkflow,
             PaintingInteractionWorkflowService paintingInteractions,
             double paintPanelInteractionDistance,
             Runnable strokeStateCleaner
@@ -59,6 +61,7 @@ public final class PaintTickWorkflowService {
         this.paletteWorkflow = paletteWorkflow;
         this.artworkGalleryWorkflow = artworkGalleryWorkflow;
         this.advancedToolWorkflow = advancedToolWorkflow;
+        this.manualStationWorkflow = manualStationWorkflow;
         this.paintingInteractions = paintingInteractions;
         this.paintPanelInteractionDistance = paintPanelInteractionDistance;
         this.strokeStateCleaner = strokeStateCleaner;
@@ -111,6 +114,9 @@ public final class PaintTickWorkflowService {
         }
         if (paletteWorkflow != null) {
             paletteWorkflow.updatePlacementPreviews();
+        }
+        if (manualStationWorkflow != null) {
+            manualStationWorkflow.updatePlacementPreviews();
         }
     }
 

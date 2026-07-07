@@ -154,7 +154,9 @@ public final class CanvasMapSyncService {
 
         List<Player> validRecipients = new ArrayList<>();
         for (Player player : recipients) {
-            if (player != null && canvas.plane().worldId().equals(player.getWorld().getUID())) {
+            if (player != null
+                    && canvas.plane().worldId().equals(player.getWorld().getUID())
+                    && !canvas.isHiddenFor(player.getUniqueId())) {
                 validRecipients.add(player);
             }
         }
@@ -312,12 +314,16 @@ public final class CanvasMapSyncService {
     private List<Player> ownerRecipients(PlayerCanvas canvas) {
         List<Player> recipients = new ArrayList<>();
         Player owner = plugin.getServer().getPlayer(canvas.ownerId());
-        if (owner != null && owner.getWorld().getUID().equals(canvas.plane().worldId())) {
+        if (owner != null
+                && owner.getWorld().getUID().equals(canvas.plane().worldId())
+                && !canvas.isHiddenFor(owner.getUniqueId())) {
             recipients.add(owner);
         }
         for (UUID editorId : canvas.editorIds()) {
             Player editor = plugin.getServer().getPlayer(editorId);
-            if (editor != null && editor.getWorld().getUID().equals(canvas.plane().worldId())) {
+            if (editor != null
+                    && editor.getWorld().getUID().equals(canvas.plane().worldId())
+                    && !canvas.isHiddenFor(editor.getUniqueId())) {
                 recipients.add(editor);
             }
         }
@@ -329,6 +335,7 @@ public final class CanvasMapSyncService {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (!player.getUniqueId().equals(canvas.ownerId())
                     && !canvas.editorIds().contains(player.getUniqueId())
+                    && !canvas.isHiddenFor(player.getUniqueId())
                     && player.getWorld().getUID().equals(canvas.plane().worldId())) {
                 recipients.add(player);
             }

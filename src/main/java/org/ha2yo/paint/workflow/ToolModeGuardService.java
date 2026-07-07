@@ -20,16 +20,19 @@ public final class ToolModeGuardService {
     private final Predicate<UUID> artworkFrameSelectionActive;
     private final Predicate<UUID> canvasPlacementActive;
     private final Predicate<UUID> exhibitRemovalActive;
+    private final Predicate<UUID> manualStationPlacementActive;
     private final Predicate<Integer> artworkFrameMaterialSlot;
     private final Consumer<Player> paintPanelToolEnsurer;
     private final Consumer<Player> artworkPlacementToolEnsurer;
     private final Consumer<Player> canvasPlacementToolEnsurer;
     private final Consumer<Player> exhibitRemovalToolEnsurer;
+    private final Consumer<Player> manualStationPlacementToolEnsurer;
     private final BiConsumer<Player, Integer> artworkDistanceAdjuster;
     private final BiConsumer<Player, Integer> canvasDistanceAdjuster;
     private final BiConsumer<Player, Boolean> artworkPlacementEnder;
     private final BiConsumer<Player, Boolean> canvasPlacementEnder;
     private final BiConsumer<Player, Boolean> exhibitRemovalEnder;
+    private final BiConsumer<Player, Boolean> manualStationPlacementEnder;
 
     public ToolModeGuardService(
             int toolSlot,
@@ -38,16 +41,19 @@ public final class ToolModeGuardService {
             Predicate<UUID> artworkFrameSelectionActive,
             Predicate<UUID> canvasPlacementActive,
             Predicate<UUID> exhibitRemovalActive,
+            Predicate<UUID> manualStationPlacementActive,
             Predicate<Integer> artworkFrameMaterialSlot,
             Consumer<Player> paintPanelToolEnsurer,
             Consumer<Player> artworkPlacementToolEnsurer,
             Consumer<Player> canvasPlacementToolEnsurer,
             Consumer<Player> exhibitRemovalToolEnsurer,
+            Consumer<Player> manualStationPlacementToolEnsurer,
             BiConsumer<Player, Integer> artworkDistanceAdjuster,
             BiConsumer<Player, Integer> canvasDistanceAdjuster,
             BiConsumer<Player, Boolean> artworkPlacementEnder,
             BiConsumer<Player, Boolean> canvasPlacementEnder,
-            BiConsumer<Player, Boolean> exhibitRemovalEnder
+            BiConsumer<Player, Boolean> exhibitRemovalEnder,
+            BiConsumer<Player, Boolean> manualStationPlacementEnder
     ) {
         this.toolSlot = toolSlot;
         this.paintPanelActive = paintPanelActive;
@@ -55,16 +61,19 @@ public final class ToolModeGuardService {
         this.artworkFrameSelectionActive = artworkFrameSelectionActive;
         this.canvasPlacementActive = canvasPlacementActive;
         this.exhibitRemovalActive = exhibitRemovalActive;
+        this.manualStationPlacementActive = manualStationPlacementActive;
         this.artworkFrameMaterialSlot = artworkFrameMaterialSlot;
         this.paintPanelToolEnsurer = paintPanelToolEnsurer;
         this.artworkPlacementToolEnsurer = artworkPlacementToolEnsurer;
         this.canvasPlacementToolEnsurer = canvasPlacementToolEnsurer;
         this.exhibitRemovalToolEnsurer = exhibitRemovalToolEnsurer;
+        this.manualStationPlacementToolEnsurer = manualStationPlacementToolEnsurer;
         this.artworkDistanceAdjuster = artworkDistanceAdjuster;
         this.canvasDistanceAdjuster = canvasDistanceAdjuster;
         this.artworkPlacementEnder = artworkPlacementEnder;
         this.canvasPlacementEnder = canvasPlacementEnder;
         this.exhibitRemovalEnder = exhibitRemovalEnder;
+        this.manualStationPlacementEnder = manualStationPlacementEnder;
     }
 
     public boolean guardDrop(PlayerDropItemEvent event) {
@@ -128,6 +137,13 @@ public final class ToolModeGuardService {
             }
             return true;
         }
+        if (manualStationPlacementActive.test(playerId)) {
+            if (event.getNewSlot() != toolSlot) {
+                event.setCancelled(true);
+                manualStationPlacementToolEnsurer.accept(player);
+            }
+            return true;
+        }
         return false;
     }
 
@@ -168,6 +184,12 @@ public final class ToolModeGuardService {
             exhibitRemovalEnder.accept(player, true);
             return true;
         }
+        if (manualStationPlacementActive.test(playerId)) {
+            event.setInstaBreak(false);
+            event.setCancelled(true);
+            manualStationPlacementEnder.accept(player, true);
+            return true;
+        }
         return false;
     }
 
@@ -175,7 +197,8 @@ public final class ToolModeGuardService {
         return paintPanelActive.test(playerId)
                 || artworkPlacementActive.test(playerId)
                 || canvasPlacementActive.test(playerId)
-                || exhibitRemovalActive.test(playerId);
+                || exhibitRemovalActive.test(playerId)
+                || manualStationPlacementActive.test(playerId);
     }
 
     private boolean isArtworkFrameMaterialClick(Player player, InventoryClickEvent event) {
@@ -204,6 +227,10 @@ public final class ToolModeGuardService {
         }
         if (exhibitRemovalActive.test(playerId)) {
             exhibitRemovalToolEnsurer.accept(player);
+            return;
+        }
+        if (manualStationPlacementActive.test(playerId)) {
+            manualStationPlacementToolEnsurer.accept(player);
         }
     }
 

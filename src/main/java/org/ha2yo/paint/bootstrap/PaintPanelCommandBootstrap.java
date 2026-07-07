@@ -21,6 +21,9 @@ final class PaintPanelCommandBootstrap {
         panelRuntime.manualStationWorkflow = new ManualStationWorkflowService(
                 c.plugin(),
                 panelRuntime.manualStations,
+                coreRuntime.previewActionKey,
+                PaintApplication.ARTWORK_PLACEMENT_TOOL_SLOT,
+                PaintApplication.PREVIEW_ACTION_MANUAL_STATION,
                 canvasRuntime.canvasLifecycle,
                 canvasRuntime.canvasWorkflow,
                 canvasRuntime.canvasMapRenderer,
@@ -29,6 +32,7 @@ final class PaintPanelCommandBootstrap {
                 panelRuntime.paintPanelModes,
                 artworkRuntime.artworkGalleryWorkflow,
                 artworkRuntime.artworkSaveWorkflow,
+                () -> placementRuntime.placementPreviews,
                 coreRuntime.featureService::canvas,
                 player -> c.plugin().getConfig().getBoolean("free-mode", true),
                 panelRuntime.inventoryToolWorkflow::giveTools,

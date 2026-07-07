@@ -71,6 +71,7 @@ public final class PaintApplication {
     public static final String PREVIEW_ACTION_CANVAS_PLACEMENT = "canvas_placement";
     public static final String PREVIEW_ACTION_EXHIBIT_REMOVAL = "exhibit_removal";
     public static final String PREVIEW_ACTION_PAINT_PANEL = "paint_panel";
+    public static final String PREVIEW_ACTION_MANUAL_STATION = "manual_station";
     public static final long ARTWORK_PLACEMENT_ARM_DELAY_MILLIS = 250L;
     public static final long PALETTE_PLACEMENT_ARM_DELAY_MILLIS = 250L;
     public static final long EXHIBIT_REMOVE_CONFIRM_MILLIS = 4000L;

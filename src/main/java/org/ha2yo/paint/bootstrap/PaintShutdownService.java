@@ -25,6 +25,9 @@ public final class PaintShutdownService {
             if (canvasRuntime.paletteWorkflow != null) {
                 canvasRuntime.paletteWorkflow.endPlacement(player, false);
             }
+            if (panelRuntime.manualStationWorkflow != null) {
+                panelRuntime.manualStationWorkflow.endPlacement(player, false);
+            }
             if (placementRuntime.placementUiWorkflow != null) {
                 placementRuntime.placementUiWorkflow.endCanvas(player, false);
                 placementRuntime.placementUiWorkflow.endArtwork(player, false);
@@ -42,6 +45,9 @@ public final class PaintShutdownService {
         placementRuntime.placementUiWorkflow.clearExhibitRemovalModes();
         if (canvasRuntime.paletteWorkflow != null) {
             canvasRuntime.paletteWorkflow.clearPlacementPreviews();
+        }
+        if (panelRuntime.manualStationWorkflow != null) {
+            panelRuntime.manualStationWorkflow.clearPlacementPreviews();
         }
         if (artworkRuntime.artworkDisplays != null) {
             artworkRuntime.artworkDisplays.clearDisplays();

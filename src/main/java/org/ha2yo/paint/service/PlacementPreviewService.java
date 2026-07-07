@@ -57,6 +57,22 @@ public final class PlacementPreviewService {
 
     public ArtworkPlacementCandidate canvasCandidate(Player player, int width, int height, int preferredDistance) {
         BlockFace playerFacing = cardinalFace(player);
+        RayTraceResult rayTrace = player.rayTraceBlocks(preferredDistance, FluidCollisionMode.NEVER);
+        if (rayTrace != null && rayTrace.getHitBlock() != null && rayTrace.getHitBlockFace() != null) {
+            BlockFace front = rayTrace.getHitBlockFace();
+            if (isPlacementFace(front) && front.getModY() == 0) {
+                BlockFace facing = front.getOppositeFace();
+                BlockFace right = rightOf(facing);
+                Block centerBlock = rayTrace.getHitBlock();
+                Block origin = offsetBlock(offsetBlock(centerBlock, right, -(width / 2)), BlockFace.UP, -(height / 2));
+                boolean valid = canPlaceCanvasOnWall(origin, front, right, width, height);
+                return new ArtworkPlacementCandidate(player.getWorld(), origin, facing, right, BlockFace.UP, valid, true);
+            }
+        }
+        return airCanvasCandidate(player, playerFacing, width, height, preferredDistance);
+    }
+
+    private ArtworkPlacementCandidate airCanvasCandidate(Player player, BlockFace playerFacing, int width, int height, int preferredDistance) {
         Vector direction = player.getEyeLocation().getDirection();
         if (direction.lengthSquared() < 1.0E-6D) {
             direction = vectorOf(playerFacing);
@@ -79,7 +95,7 @@ public final class PlacementPreviewService {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 Block backing = candidate.origin().getRelative(candidate.right(), x).getRelative(candidate.up(), y);
-                Block displayBlock = candidate.snappedToSurface() ? backing.getRelative(front) : backing;
+                Block displayBlock = previewDisplayBlock(backing, front, candidate.snappedToSurface());
                 spawnOutline(ownerId, displayIds, displayBlock, material, candidate.right(), candidate.up(), front, candidate.snappedToSurface());
             }
         }
@@ -189,8 +205,31 @@ public final class PlacementPreviewService {
         return true;
     }
 
+    private boolean canPlaceCanvasOnWall(Block origin, BlockFace front, BlockFace right, int width, int height) {
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                Block backing = origin.getRelative(right, x).getRelative(BlockFace.UP, y);
+                if (blockedBlock.test(BlockKey.from(backing))) {
+                    return false;
+                }
+                Block displaySpace = backing.getRelative(front);
+                if (!isDisplaySpaceClear(displaySpace)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     private boolean isDisplaySpaceClear(Block block) {
         return block.getType().isAir() || block.getType() == Material.LIGHT;
+    }
+
+    private Block previewDisplayBlock(Block backing, BlockFace front, boolean snappedToSurface) {
+        if (!snappedToSurface || !backing.getType().isSolid()) {
+            return backing;
+        }
+        return backing.getRelative(front);
     }
 
     private void spawnOutline(

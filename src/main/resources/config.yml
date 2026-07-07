@@ -1,4 +1,5 @@
 map-render:
-  rgb-mode: true
+  canvas-rgb-mode: true
+  display-rgb-mode: false
 
 free-mode: true

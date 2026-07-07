@@ -104,6 +104,9 @@ public final class PaintInteractionFacade {
     boolean isPalettePlacementModeActive(UUID playerId) {
         return paletteWorkflow != null && paletteWorkflow.isPlacementActive(playerId);
     }
+    boolean isManualStationPlacementActive(UUID playerId) {
+        return manualStationWorkflow != null && manualStationWorkflow.isPlacementActive(playerId);
+    }
     boolean isExhibitRemovalModeActive(UUID playerId) {
         return placementModeWorkflow != null && placementModeWorkflow.isExhibitRemovalActive(playerId);
     }
@@ -155,8 +158,14 @@ public final class PaintInteractionFacade {
     boolean handlePalettePlacementInteract(Player player, Action action) {
         return paletteWorkflow != null && paletteWorkflow.handlePlacementInteract(player, action);
     }
+    boolean handleManualStationPlacementInteract(Player player, Action action) {
+        return manualStationWorkflow != null && manualStationWorkflow.handlePlacementInteract(player, action);
+    }
     boolean handlePalettePlacementSwing(Player player) {
         return paletteWorkflow != null && paletteWorkflow.handlePlacementSwing(player);
+    }
+    boolean handleManualStationPlacementSwing(Player player) {
+        return manualStationWorkflow != null && manualStationWorkflow.handlePlacementSwing(player);
     }
     boolean confirmPalettePlacement(Player player) {
         return paletteWorkflow != null && paletteWorkflow.confirmPlacement(player);
@@ -164,6 +173,11 @@ public final class PaintInteractionFacade {
     void endPalettePlacementPreview(Player player, boolean sendCancelMessage) {
         if (paletteWorkflow != null) {
             paletteWorkflow.endPlacement(player, sendCancelMessage);
+        }
+    }
+    void endManualStationPlacementPreview(Player player, boolean sendCancelMessage) {
+        if (manualStationWorkflow != null) {
+            manualStationWorkflow.endPlacement(player, sendCancelMessage);
         }
     }
     boolean handleArtworkFrameStyleClick(Player player, UUID entityId) {

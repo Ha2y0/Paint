@@ -77,7 +77,7 @@ public final class LayerWorkflowService {
 
     public void syncVisibility(Player viewer) {
         if (layerPanels != null) {
-            layerPanels.syncVisibility(viewer);
+            layerPanels.syncVisibility(viewer, canvasResolver);
         }
     }
 

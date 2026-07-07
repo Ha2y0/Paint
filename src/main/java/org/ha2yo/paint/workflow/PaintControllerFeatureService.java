@@ -16,6 +16,7 @@ import org.ha2yo.paint.model.session.CanvasPlacementSession;
 import org.ha2yo.paint.model.tool.Tool;
 import org.ha2yo.paint.service.ArtworkDisplayService;
 import org.ha2yo.paint.service.CanvasLifecycleService;
+import org.ha2yo.paint.service.CanvasMapSyncService;
 import org.ha2yo.paint.service.DrawingInteractionService;
 import org.ha2yo.paint.service.DrawingSessionService;
 import org.ha2yo.paint.service.PaintMenuService;
@@ -49,8 +50,10 @@ public final class PaintControllerFeatureService {
     private final Supplier<ArtworkGalleryWorkflowService> artworkGalleryWorkflow;
     private final Supplier<ArtworkSaveWorkflowService> artworkSaveWorkflow;
     private final Supplier<PlacementPreviewService> placementPreviews;
+    private final Supplier<LayerWorkflowService> layerWorkflow;
     private final Supplier<PaletteBoardService> paletteBoards;
     private final Supplier<ArtworkDisplayService> artworkDisplays;
+    private final Supplier<CanvasMapSyncService> canvasMaps;
 
     public PaintControllerFeatureService(
             Paint plugin,
@@ -72,8 +75,10 @@ public final class PaintControllerFeatureService {
             Supplier<ArtworkGalleryWorkflowService> artworkGalleryWorkflow,
             Supplier<ArtworkSaveWorkflowService> artworkSaveWorkflow,
             Supplier<PlacementPreviewService> placementPreviews,
+            Supplier<LayerWorkflowService> layerWorkflow,
             Supplier<PaletteBoardService> paletteBoards,
-            Supplier<ArtworkDisplayService> artworkDisplays
+            Supplier<ArtworkDisplayService> artworkDisplays,
+            Supplier<CanvasMapSyncService> canvasMaps
     ) {
         this.plugin = plugin;
         this.paintWindows = paintWindows;
@@ -94,8 +99,10 @@ public final class PaintControllerFeatureService {
         this.artworkGalleryWorkflow = artworkGalleryWorkflow;
         this.artworkSaveWorkflow = artworkSaveWorkflow;
         this.placementPreviews = placementPreviews;
+        this.layerWorkflow = layerWorkflow;
         this.paletteBoards = paletteBoards;
         this.artworkDisplays = artworkDisplays;
+        this.canvasMaps = canvasMaps;
     }
 
     public PaintCanvas createCanvas(Player player) {
@@ -139,12 +146,47 @@ public final class PaintControllerFeatureService {
 
     public boolean grantCanvasEditAccess(UUID ownerId, UUID editorId) {
         CanvasLifecycleService lifecycle = canvasLifecycle.get();
-        return lifecycle != null && lifecycle.grantEditAccess(ownerId, editorId);
+        if (lifecycle == null || !lifecycle.grantEditAccess(ownerId, editorId)) {
+            return false;
+        }
+        updateLayerDisplays(ownerId);
+        return true;
     }
 
     public boolean revokeCanvasEditAccess(UUID ownerId, UUID editorId) {
         CanvasLifecycleService lifecycle = canvasLifecycle.get();
-        return lifecycle != null && lifecycle.revokeEditAccess(ownerId, editorId);
+        if (lifecycle == null || !lifecycle.revokeEditAccess(ownerId, editorId)) {
+            return false;
+        }
+        updateLayerDisplays(ownerId);
+        return true;
+    }
+
+    public boolean setCanvasVisibleFor(UUID ownerId, Player viewer, boolean visible) {
+        CanvasLifecycleService lifecycle = canvasLifecycle.get();
+        if (lifecycle == null || viewer == null || !lifecycle.setCanvasVisibleFor(ownerId, viewer, visible)) {
+            return false;
+        }
+        if (visible) {
+            PlayerCanvas canvas = lifecycle.canvas(ownerId);
+            CanvasMapSyncService maps = canvasMaps.get();
+            if (canvas != null && maps != null) {
+                maps.sendTo(canvas, viewer, true);
+            }
+        }
+        return true;
+    }
+
+    private void updateLayerDisplays(UUID ownerId) {
+        CanvasLifecycleService lifecycle = canvasLifecycle.get();
+        LayerWorkflowService workflow = layerWorkflow.get();
+        if (lifecycle == null || workflow == null) {
+            return;
+        }
+        PlayerCanvas canvas = lifecycle.canvas(ownerId);
+        if (canvas != null) {
+            workflow.updateDisplays(canvas);
+        }
     }
 
     public void adjustArtworkPlacementDistance(Player player, int delta) {
@@ -319,7 +361,11 @@ public final class PaintControllerFeatureService {
     }
 
     public boolean shaderRgbEnabled() {
-        return plugin.getConfig().getBoolean("map-render.rgb-mode", true);
+        return plugin.getConfig().getBoolean("map-render.canvas-rgb-mode", true);
+    }
+
+    public boolean displayShaderRgbEnabled() {
+        return plugin.getConfig().getBoolean("map-render.display-rgb-mode", false);
     }
 
     public int clampCanvasBlockSize(int value) {

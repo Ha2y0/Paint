@@ -139,15 +139,15 @@ public final class LayerPanelService {
         return null;
     }
 
-    public void syncVisibility(Player viewer) {
+    public void syncVisibility(Player viewer, Function<UUID, PlayerCanvas> canvasResolver) {
         for (Map.Entry<UUID, List<UUID>> entry : displayIdsByOwner.entrySet()) {
-            boolean owner = viewer.getUniqueId().equals(entry.getKey());
+            PlayerCanvas canvas = canvasResolver.apply(entry.getKey());
             for (UUID entityId : entry.getValue()) {
                 Entity entity = Bukkit.getEntity(entityId);
                 if (entity == null) {
                     continue;
                 }
-                if (owner) {
+                if (canvas != null && canvas.canEdit(viewer)) {
                     viewer.showEntity(plugin, entity);
                 } else {
                     viewer.hideEntity(plugin, entity);
@@ -351,7 +351,7 @@ public final class LayerPanelService {
         display.setDefaultBackground(false);
         display.setBackgroundColor(background);
         display.addScoreboardTag(displayTag);
-        makeEntityVisibleOnlyToOwner(display, canvas.ownerId());
+        makeEntityVisibleToEditors(display, canvas);
         return display;
     }
 
@@ -370,7 +370,7 @@ public final class LayerPanelService {
                 new AxisAngle4f(0.0F, 0.0F, 1.0F, 0.0F)
         ));
         display.addScoreboardTag(displayTag);
-        makeEntityVisibleOnlyToOwner(display, canvas.ownerId());
+        makeEntityVisibleToEditors(display, canvas);
         return display;
     }
 
@@ -457,9 +457,9 @@ public final class LayerPanelService {
         }
     }
 
-    private void makeEntityVisibleOnlyToOwner(Entity entity, UUID ownerId) {
+    private void makeEntityVisibleToEditors(Entity entity, PlayerCanvas canvas) {
         for (Player viewer : Bukkit.getOnlinePlayers()) {
-            if (viewer.getUniqueId().equals(ownerId)) {
+            if (canvas.canEdit(viewer)) {
                 viewer.showEntity(plugin, entity);
             } else {
                 viewer.hideEntity(plugin, entity);

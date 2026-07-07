@@ -193,6 +193,9 @@ public final class PixelMapRenderer extends MapRenderer {
                 }
             }
         }
+        if (shaderRgb) {
+            RgbMapEncoder.writeSignature(vanillaIndexes, mapSize, mapSize);
+        }
     }
 
     private RenderedMap cachedMap(int tileVersion, int voteCount, boolean shaderRgb) {

@@ -151,16 +151,28 @@ final class PaintPlacementBootstrap {
                 placementRuntime.placementModeWorkflow::isArtworkFrameSelectionActive,
                 panelRuntime.inventoryToolWorkflow::isCanvasPlacementModeActive,
                 panelRuntime.inventoryToolWorkflow::isExhibitRemovalModeActive,
+                playerId -> panelRuntime.manualStationWorkflow != null
+                        && panelRuntime.manualStationWorkflow.isPlacementActive(playerId),
                 placementRuntime.placementModeWorkflow::isArtworkFrameMaterialSlot,
                 panelRuntime.inventoryToolWorkflow::ensurePaintPanelTool,
                 panelRuntime.inventoryToolWorkflow::ensureArtworkPlacementTool,
                 panelRuntime.inventoryToolWorkflow::ensureCanvasPlacementTool,
                 panelRuntime.inventoryToolWorkflow::ensureExhibitRemovalTool,
+                player -> {
+                    if (panelRuntime.manualStationWorkflow != null) {
+                        panelRuntime.manualStationWorkflow.ensurePlacementTool(player);
+                    }
+                },
                 coreRuntime.featureService::adjustArtworkPlacementDistance,
                 coreRuntime.featureService::adjustCanvasPlacementDistance,
                 placementRuntime.placementUiWorkflow::endArtwork,
                 placementRuntime.placementUiWorkflow::endCanvas,
-                placementRuntime.placementUiWorkflow::endExhibitRemoval
+                placementRuntime.placementUiWorkflow::endExhibitRemoval,
+                (player, sendCancelMessage) -> {
+                    if (panelRuntime.manualStationWorkflow != null) {
+                        panelRuntime.manualStationWorkflow.endPlacement(player, sendCancelMessage);
+                    }
+                }
         );
     }
 }

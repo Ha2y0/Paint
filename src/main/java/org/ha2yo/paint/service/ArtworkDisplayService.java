@@ -65,7 +65,12 @@ public final class ArtworkDisplayService {
     private final Set<BlockKey> protectedBlocks = new HashSet<>();
     private File exhibitsFile;
 
-    public ArtworkDisplayService(Paint plugin, int mapSize, Color backgroundColor, BooleanSupplier shaderRgbEnabled) {
+    public ArtworkDisplayService(
+            Paint plugin,
+            int mapSize,
+            Color backgroundColor,
+            BooleanSupplier shaderRgbEnabled
+    ) {
         this.plugin = plugin;
         this.mapSize = mapSize;
         this.backgroundColor = backgroundColor;
@@ -276,7 +281,9 @@ public final class ArtworkDisplayService {
             return;
         }
 
-        BufferedImage image = resizedImage(source, exhibit.width() * mapSize, exhibit.height() * mapSize);
+        BufferedImage resized = resizedImage(source, exhibit.width() * mapSize, exhibit.height() * mapSize);
+        boolean shaderRgb = shaderRgbEnabled.getAsBoolean();
+        BufferedImage image = displayImage(resized, shaderRgb);
         Block origin = world.getBlockAt(exhibit.x(), exhibit.y(), exhibit.z());
         BlockFace front = exhibit.facing().getOppositeFace();
         List<UUID> entityIds = new ArrayList<>();
@@ -290,11 +297,18 @@ public final class ArtworkDisplayService {
                 entityIds.add(frame.getUniqueId());
                 displayEntityIds.add(frame.getUniqueId());
                 int tileY = isHorizontal(front) ? y : exhibit.height() - 1 - y;
-                frame.setItem(createMapItem(world, image, x, tileY, front, exhibit.right(), exhibit.up()), false);
+                frame.setItem(createMapItem(world, image, x, tileY, front, exhibit.right(), exhibit.up(), shaderRgb), false);
             }
         }
         spawnFrameBorder(world, origin, exhibit, front, entityIds);
         entityIdsByExhibit.put(exhibit.id(), entityIds);
+    }
+
+    private BufferedImage displayImage(BufferedImage resized, boolean shaderRgb) {
+        if (shaderRgb) {
+            return resized;
+        }
+        return GalleryImageMapRenderer.oklabToVanillaMapColors(resized, backgroundColor);
     }
 
     private Set<BlockKey> protectedBlocksOf(PaintExhibit exhibit) {
@@ -352,7 +366,16 @@ public final class ArtworkDisplayService {
         }
     }
 
-    private ItemStack createMapItem(World world, BufferedImage image, int tileX, int tileY, BlockFace front, BlockFace right, BlockFace up) {
+    private ItemStack createMapItem(
+            World world,
+            BufferedImage image,
+            int tileX,
+            int tileY,
+            BlockFace front,
+            BlockFace right,
+            BlockFace up,
+            boolean shaderRgb
+    ) {
         MapView mapView = plugin.getServer().createMap(world);
         mapView.setTrackingPosition(false);
         mapView.setUnlimitedTracking(false);
@@ -360,9 +383,9 @@ public final class ArtworkDisplayService {
             mapView.removeRenderer(renderer);
         }
         if (isHorizontal(front)) {
-            mapView.addRenderer(new GalleryImageMapRenderer(image, tileX, tileY, mapSize, backgroundColor, shaderRgbEnabled.getAsBoolean(), front, right, up));
+            mapView.addRenderer(new GalleryImageMapRenderer(image, tileX, tileY, mapSize, backgroundColor, shaderRgb, front, right, up));
         } else {
-            mapView.addRenderer(new GalleryImageMapRenderer(image, tileX, tileY, mapSize, backgroundColor, shaderRgbEnabled.getAsBoolean()));
+            mapView.addRenderer(new GalleryImageMapRenderer(image, tileX, tileY, mapSize, backgroundColor, shaderRgb));
         }
 
         ItemStack item = new ItemStack(Material.FILLED_MAP);

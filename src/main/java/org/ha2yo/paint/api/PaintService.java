@@ -30,6 +30,8 @@ public interface PaintService {
 
     boolean revokeCanvasEditAccess(UUID ownerId, UUID editorId);
 
+    boolean setCanvasVisibleFor(UUID ownerId, Player viewer, boolean visible);
+
     Optional<Color> selectedColor(UUID playerId);
 
     OptionalInt brushRadius(UUID playerId);
