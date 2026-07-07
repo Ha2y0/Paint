@@ -56,6 +56,14 @@ Minecraft Paper 서버에서 그림판 기능을 제공하는 플러그인입니
 <img width="2560" height="1440" alt="2026-07-01_01 40 00" src="https://github.com/user-attachments/assets/78e8fd06-68ce-4685-a0d4-57e20b7117a5" />
 <img width="2560" height="1440" alt="2026-07-01_01 40 15" src="https://github.com/user-attachments/assets/6b1894a1-c1fd-43e2-9c32-8e70711ca629" />
 
+### display-rgb-mode: true일 때의 전시 상태 (쉐이더 상태에서 동작 X)
+<img width="854" height="480" alt="image" src="https://github.com/user-attachments/assets/879f23f9-265a-4196-9959-d927809ce43c" />
+<img width="854" height="480" alt="image" src="https://github.com/user-attachments/assets/0a67ecc8-ef55-4320-b8e8-29ed64e90fd0" />
+
+### display-rgb-mode: false일 때의 전시 상태 (쉐이더 상태에서 동작 O)
+<img width="854" height="480" alt="image" src="https://github.com/user-attachments/assets/2c0a1adb-3cae-4ecf-9cb0-6ea02c4fa9ee" />
+<img width="854" height="480" alt="image" src="https://github.com/user-attachments/assets/b999ba54-ae4b-4ae0-81ec-a762cd5a09d4" />
+
 ## 요구 사항
 
 | 항목 | 요구 사항 |
