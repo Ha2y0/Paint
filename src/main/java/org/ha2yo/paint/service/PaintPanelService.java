@@ -2,7 +2,6 @@ package org.ha2yo.paint.service;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Display;
@@ -12,9 +11,6 @@ import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.MapMeta;
-import org.bukkit.map.MapRenderer;
-import org.bukkit.map.MapView;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
@@ -57,16 +53,23 @@ public final class PaintPanelService {
     private final Paint plugin;
     private final Color backgroundColor;
     private final BooleanSupplier shaderRgbEnabled;
+    private final ReusableMapPoolService reusableMaps;
     private final Map<UUID, PanelBoard> boards = new HashMap<>();
     private final Map<UUID, PanelClick> clicks = new HashMap<>();
     private final Map<UUID, TooltipState> tooltips = new HashMap<>();
     private final Map<String, BufferedImage> iconCache = new HashMap<>();
     private final Set<UUID> displayEntityIds = new java.util.HashSet<>();
 
-    public PaintPanelService(Paint plugin, Color backgroundColor, BooleanSupplier shaderRgbEnabled) {
+    public PaintPanelService(
+            Paint plugin,
+            Color backgroundColor,
+            BooleanSupplier shaderRgbEnabled,
+            ReusableMapPoolService reusableMaps
+    ) {
         this.plugin = plugin;
         this.backgroundColor = backgroundColor;
         this.shaderRgbEnabled = shaderRgbEnabled;
+        this.reusableMaps = reusableMaps;
     }
 
     public void showMainMenu(UUID playerId, Location centerLocation, BlockFace facing, boolean confirmRemove) {
@@ -87,13 +90,20 @@ public final class PaintPanelService {
                 new PanelButton(confirmRemove ? "OK?" : "DEL", "CANVAS", PaintMenuService.MenuAction.REMOVE, confirmRemove ? DELETE_CONFIRM_BUTTON_COLOR : DELETE_BUTTON_COLOR),
                 new PanelButton("EXIT", "PANEL", PaintMenuService.MenuAction.CANCEL, EXIT_BUTTON_COLOR)
         };
-        for (int col = 0; col < buttons.length; col++) {
-            PanelButton button = buttons[col];
-            ItemFrame frame = spawnPanelFrame(world, center, right, front, col, 0, buttons.length);
-            frame.setItem(createMapItem(world, buttonTile(button)), false);
-            register(entityIds, frame, clickFor(button));
+        ReusableMapPoolService.MapLease mapLease = reusableMaps.acquire(world, buttons.length);
+        try {
+            for (int col = 0; col < buttons.length; col++) {
+                PanelButton button = buttons[col];
+                ItemFrame frame = spawnPanelFrame(world, center, right, front, col, 0, buttons.length);
+                frame.setItem(createMapItem(mapLease, col, buttonTile(button)), false);
+                register(entityIds, frame, clickFor(button));
+            }
+            boards.put(playerId, new PanelBoard(entityIds, centerLocation.clone(), facing, mapLease));
+        } catch (RuntimeException e) {
+            removeEntities(entityIds);
+            reusableMaps.release(mapLease);
+            throw e;
         }
-        boards.put(playerId, new PanelBoard(entityIds, centerLocation.clone(), facing));
     }
 
     public boolean showMainMenuAtCurrentLocation(UUID playerId, boolean confirmRemove) {
@@ -122,13 +132,20 @@ public final class PaintPanelService {
                 new PanelButton("MAKE", width + "x" + height, PaintMenuService.MenuAction.CREATE_CANVAS, new Color(68, 116, 154)),
                 new PanelButton("BACK", "MENU", PaintMenuService.MenuAction.BACK, new Color(126, 82, 62))
         };
-        for (int col = 0; col < buttons.length; col++) {
-            PanelButton button = buttons[col];
-            ItemFrame frame = spawnPanelFrame(world, center, right, front, col, 0, buttons.length);
-            frame.setItem(createMapItem(world, buttonTile(button)), false);
-            register(entityIds, frame, clickFor(button));
+        ReusableMapPoolService.MapLease mapLease = reusableMaps.acquire(world, buttons.length);
+        try {
+            for (int col = 0; col < buttons.length; col++) {
+                PanelButton button = buttons[col];
+                ItemFrame frame = spawnPanelFrame(world, center, right, front, col, 0, buttons.length);
+                frame.setItem(createMapItem(mapLease, col, buttonTile(button)), false);
+                register(entityIds, frame, clickFor(button));
+            }
+            boards.put(playerId, new PanelBoard(entityIds, centerLocation.clone(), facing, mapLease));
+        } catch (RuntimeException e) {
+            removeEntities(entityIds);
+            reusableMaps.release(mapLease);
+            throw e;
         }
-        boards.put(playerId, new PanelBoard(entityIds, centerLocation.clone(), facing));
     }
 
     public boolean showCanvasSizeMenuAtCurrentLocation(UUID playerId, int width, int height, int maxSize) {
@@ -157,15 +174,22 @@ public final class PaintPanelService {
         };
         int columns = vertical ? 1 : buttons.length;
         int rows = vertical ? buttons.length : 1;
-        for (int index = 0; index < buttons.length; index++) {
-            PanelButton button = buttons[index];
-            int col = vertical ? 0 : index;
-            int row = vertical ? index : 0;
-            ItemFrame frame = spawnPanelFrame(world, center, right, front, col, row, columns, rows);
-            frame.setItem(createMapItem(world, buttonTile(button)), false);
-            register(entityIds, frame, clickFor(button));
+        ReusableMapPoolService.MapLease mapLease = reusableMaps.acquire(world, buttons.length);
+        try {
+            for (int index = 0; index < buttons.length; index++) {
+                PanelButton button = buttons[index];
+                int col = vertical ? 0 : index;
+                int row = vertical ? index : 0;
+                ItemFrame frame = spawnPanelFrame(world, center, right, front, col, row, columns, rows);
+                frame.setItem(createMapItem(mapLease, index, buttonTile(button)), false);
+                register(entityIds, frame, clickFor(button));
+            }
+            boards.put(playerId, new PanelBoard(entityIds, centerLocation.clone(), facing, mapLease));
+        } catch (RuntimeException e) {
+            removeEntities(entityIds);
+            reusableMaps.release(mapLease);
+            throw e;
         }
-        boards.put(playerId, new PanelBoard(entityIds, centerLocation.clone(), facing));
     }
 
     public PanelClick click(UUID entityId) {
@@ -244,7 +268,12 @@ public final class PaintPanelService {
         if (board == null) {
             return;
         }
-        for (UUID entityId : board.entityIds()) {
+        removeEntities(board.entityIds());
+        reusableMaps.release(board.mapLease());
+    }
+
+    private void removeEntities(List<UUID> entityIds) {
+        for (UUID entityId : entityIds) {
             clicks.remove(entityId);
             displayEntityIds.remove(entityId);
             Entity entity = Bukkit.getEntity(entityId);
@@ -376,20 +405,8 @@ public final class PaintPanelService {
         return frame;
     }
 
-    private ItemStack createMapItem(World world, BufferedImage image) {
-        MapView mapView = plugin.getServer().createMap(world);
-        mapView.setTrackingPosition(false);
-        mapView.setUnlimitedTracking(false);
-        for (MapRenderer renderer : new ArrayList<>(mapView.getRenderers())) {
-            mapView.removeRenderer(renderer);
-        }
-        mapView.addRenderer(new GalleryImageMapRenderer(image, 0, 0, MAP_SIZE, backgroundColor, shaderRgbEnabled.getAsBoolean()));
-
-        ItemStack item = new ItemStack(Material.FILLED_MAP);
-        MapMeta meta = (MapMeta) item.getItemMeta();
-        meta.setMapView(mapView);
-        item.setItemMeta(meta);
-        return item;
+    private ItemStack createMapItem(ReusableMapPoolService.MapLease mapLease, int mapIndex, BufferedImage image) {
+        return reusableMaps.mapItem(mapLease, mapIndex, image, shaderRgbEnabled.getAsBoolean());
     }
 
     private BufferedImage buttonTile(PanelButton button) {
@@ -555,6 +572,11 @@ public final class PaintPanelService {
     private record PanelButton(String label, String subLabel, PaintMenuService.MenuAction action, Color color) {
     }
 
-    private record PanelBoard(List<UUID> entityIds, Location centerLocation, BlockFace facing) {
+    private record PanelBoard(
+            List<UUID> entityIds,
+            Location centerLocation,
+            BlockFace facing,
+            ReusableMapPoolService.MapLease mapLease
+    ) {
     }
 }

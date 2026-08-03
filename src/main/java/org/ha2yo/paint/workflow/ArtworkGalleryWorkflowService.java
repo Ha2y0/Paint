@@ -10,31 +10,26 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickCallback;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.MapMeta;
-import org.bukkit.map.MapRenderer;
-import org.bukkit.map.MapView;
 import org.ha2yo.paint.Paint;
 import org.ha2yo.paint.model.ExhibitFrameStyle;
 import org.ha2yo.paint.model.PaintArtwork;
 import org.ha2yo.paint.model.PixelCanvas;
 import org.ha2yo.paint.model.PlayerCanvas;
 import org.ha2yo.paint.model.session.ArtworkPreviewSession;
-import org.ha2yo.paint.renderer.GalleryImageMapRenderer;
 import org.ha2yo.paint.service.ArtworkGalleryService;
 import org.ha2yo.paint.service.ArtworkImageService;
 import org.ha2yo.paint.service.ArtworkPreviewService;
 import org.ha2yo.paint.service.ArtworkStorageService;
 import org.ha2yo.paint.service.PaintMenuService;
+import org.ha2yo.paint.service.ReusableMapPoolService;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +62,7 @@ public final class ArtworkGalleryWorkflowService {
     private final BiConsumer<UUID, UUID> editingArtworkSetter;
     private final Consumer<PlayerCanvas> canvasMapSender;
     private final Consumer<PlayerCanvas> layerPanelUpdater;
+    private final ReusableMapPoolService reusableMaps;
     private final BooleanSupplier shaderRgbEnabled;
     private final Map<UUID, ItemStack> previewItems = new HashMap<>();
     private final Map<UUID, ExhibitFrameStyle> selectedFrameStyles = new HashMap<>();
@@ -93,6 +89,7 @@ public final class ArtworkGalleryWorkflowService {
             BiConsumer<UUID, UUID> editingArtworkSetter,
             Consumer<PlayerCanvas> canvasMapSender,
             Consumer<PlayerCanvas> layerPanelUpdater,
+            ReusableMapPoolService reusableMaps,
             BooleanSupplier shaderRgbEnabled
     ) {
         this.plugin = plugin;
@@ -116,6 +113,7 @@ public final class ArtworkGalleryWorkflowService {
         this.editingArtworkSetter = editingArtworkSetter;
         this.canvasMapSender = canvasMapSender;
         this.layerPanelUpdater = layerPanelUpdater;
+        this.reusableMaps = reusableMaps;
         this.shaderRgbEnabled = shaderRgbEnabled;
     }
 
@@ -217,6 +215,7 @@ public final class ArtworkGalleryWorkflowService {
 
     public void clearCachedPreview(UUID artworkId) {
         previewItems.remove(artworkId);
+        reusableMaps.releasePersistent(previewMapKey(artworkId));
     }
 
     public void openInventoryList(Player player, boolean exhibitMode) {
@@ -507,24 +506,22 @@ public final class ArtworkGalleryWorkflowService {
 
         try {
             BufferedImage preview = images.thumbnail(storage.imageFile(artwork));
-            MapView mapView = plugin.getServer().createMap(world);
-            mapView.setTrackingPosition(false);
-            mapView.setUnlimitedTracking(false);
-            for (MapRenderer renderer : new ArrayList<>(mapView.getRenderers())) {
-                mapView.removeRenderer(renderer);
-            }
-            mapView.addRenderer(new GalleryImageMapRenderer(preview, 0, 0, mapSize, backgroundColor, shaderRgbEnabled.getAsBoolean()));
-
-            ItemStack item = new ItemStack(Material.FILLED_MAP);
-            MapMeta meta = (MapMeta) item.getItemMeta();
-            meta.setMapView(mapView);
-            item.setItemMeta(meta);
+            ItemStack item = reusableMaps.persistentMapItem(
+                    world,
+                    previewMapKey(artwork.id()),
+                    preview,
+                    shaderRgbEnabled.getAsBoolean()
+            );
             previewItems.put(artwork.id(), item.clone());
             return item;
         } catch (IOException e) {
             plugin.getLogger().warning("Could not create Paint artwork preview: " + e.getMessage());
             return null;
         }
+    }
+
+    private static String previewMapKey(UUID artworkId) {
+        return "artwork-" + artworkId;
     }
 
     private void showArtwork(Player player, ItemStack item) {

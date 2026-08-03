@@ -7,6 +7,7 @@ import org.ha2yo.paint.service.PaintMenuService;
 import org.ha2yo.paint.service.PaintPanelModeService;
 import org.ha2yo.paint.service.PaintPanelService;
 import org.ha2yo.paint.service.PaintTransientCleanupService;
+import org.ha2yo.paint.service.ReusableMapPoolService;
 import org.ha2yo.paint.service.ToolItemService;
 import org.ha2yo.paint.workflow.InventoryToolWorkflowService;
 import org.ha2yo.paint.workflow.PaintControllerFeatureService;
@@ -32,6 +33,7 @@ final class PaintCoreBootstrap {
         coreRuntime.artworkIdKey = new NamespacedKey(c.plugin(), "artwork_id");
         coreRuntime.previewActionKey = new NamespacedKey(c.plugin(), "preview_action");
         coreRuntime.transientCleanup = new PaintTransientCleanupService(PaintApplication.PAINT_TRANSIENT_ENTITY_TAGS, PaintApplication.CANVAS_FRAME_TAG, PaintApplication.EXHIBIT_DISPLAY_TAG);
+        coreRuntime.reusableMaps = new ReusableMapPoolService(c.plugin(), PaintApplication.MAP_SIZE, PaintApplication.BACKGROUND_COLOR);
         canvasRuntime.canvasLifecycle = new CanvasLifecycleService(c.plugin(), PaintApplication.CANVAS_FRAME_TAG);
         coreRuntime.toolItems = new ToolItemService(coreRuntime.paletteColorKey, coreRuntime.brushSizeDeltaKey, coreRuntime.brushSizeValueKey, coreRuntime.toolKey);
         coreRuntime.paintMenus = new PaintMenuService(coreRuntime.menuActionKey, coreRuntime.artworkIdKey);
@@ -60,7 +62,7 @@ final class PaintCoreBootstrap {
                 () -> artworkRuntime.artworkDisplays,
                 () -> canvasRuntime.canvasMaps
         );
-        panelRuntime.paintPanels = new PaintPanelService(c.plugin(), PaintApplication.BACKGROUND_COLOR, coreRuntime.featureService::shaderRgbEnabled);
+        panelRuntime.paintPanels = new PaintPanelService(c.plugin(), PaintApplication.BACKGROUND_COLOR, coreRuntime.featureService::shaderRgbEnabled, coreRuntime.reusableMaps);
         panelRuntime.paintPanelModes = new PaintPanelModeService(
                 panelRuntime.paintPanels,
                 coreRuntime.previewActionKey,

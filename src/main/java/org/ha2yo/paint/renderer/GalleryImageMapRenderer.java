@@ -8,14 +8,11 @@ import org.bukkit.map.MapView;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
 
 public final class GalleryImageMapRenderer extends MapRenderer {
     private final byte[] indexes;
     private final int mapSize;
-    private final Set<UUID> renderedPlayers = new HashSet<>();
+    private boolean rendered;
 
     public GalleryImageMapRenderer(BufferedImage image, int tileX, int tileY, int mapSize, Color backgroundColor, boolean shaderRgb) {
         super(false);
@@ -40,12 +37,13 @@ public final class GalleryImageMapRenderer extends MapRenderer {
     }
 
     @Override
-    public void render(MapView map, MapCanvas canvas, Player player) {
-        if (!renderedPlayers.add(player.getUniqueId())) {
+    public synchronized void render(MapView map, MapCanvas canvas, Player player) {
+        if (rendered) {
             return;
         }
 
         VanillaMapEncoder.paint(canvas, indexes, mapSize, mapSize);
+        rendered = true;
     }
 
     public static BufferedImage oklabToVanillaMapColors(BufferedImage image, Color backgroundColor) {

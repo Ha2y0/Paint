@@ -13,9 +13,6 @@ import org.bukkit.entity.GlowItemFrame;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.MapMeta;
-import org.bukkit.map.MapRenderer;
-import org.bukkit.map.MapView;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 import org.ha2yo.paint.Paint;
@@ -48,20 +45,24 @@ public final class PaletteBoardService {
     private final String frameTag;
     private final BooleanSupplier shaderRgbSupplier;
     private final Predicate<BlockKey> blockedBlockPredicate;
+    private final ReusableMapPoolService reusableMaps;
     private final Map<UUID, PaletteBoard> boards = new HashMap<>();
     private final Map<BlockKey, PaletteBoard> blockBoards = new HashMap<>();
     private final Map<UUID, PaletteBoard> frameBoards = new HashMap<>();
+    private final Map<UUID, ReusableMapPoolService.MapLease> mapLeases = new HashMap<>();
 
     public PaletteBoardService(
             Paint plugin,
             String frameTag,
             BooleanSupplier shaderRgbSupplier,
-            Predicate<BlockKey> blockedBlockPredicate
+            Predicate<BlockKey> blockedBlockPredicate,
+            ReusableMapPoolService reusableMaps
     ) {
         this.plugin = plugin;
         this.frameTag = frameTag;
         this.shaderRgbSupplier = shaderRgbSupplier;
         this.blockedBlockPredicate = blockedBlockPredicate;
+        this.reusableMaps = reusableMaps;
     }
 
     public boolean open(Player player, Color selectedColor, int brushRadius, PaletteMode mode, boolean hasCanvas) {
@@ -119,37 +120,47 @@ public final class PaletteBoardService {
         );
         board.setMode(mode);
         PaletteMapRenderer.updateGradientCursorForColor(board, selectedColor);
+        ReusableMapPoolService.MapLease mapLease = reusableMaps.acquire(
+                placement.world(),
+                PALETTE_BLOCK_WIDTH * PALETTE_BLOCK_HEIGHT
+        );
         boards.put(playerId, board);
+        mapLeases.put(playerId, mapLease);
 
-        for (int y = 0; y < PALETTE_BLOCK_HEIGHT; y++) {
-            for (int x = 0; x < PALETTE_BLOCK_WIDTH; x++) {
-                Block block = placement.origin().getRelative(placement.right(), x).getRelative(BlockFace.UP, y);
-                Block frameSpace = block.getRelative(placement.front());
-                if (!placement.wallBacked()) {
-                    rememberAndClearTransientBlock(board, block);
+        try {
+            for (int y = 0; y < PALETTE_BLOCK_HEIGHT; y++) {
+                for (int x = 0; x < PALETTE_BLOCK_WIDTH; x++) {
+                    Block block = placement.origin().getRelative(placement.right(), x).getRelative(BlockFace.UP, y);
+                    Block frameSpace = block.getRelative(placement.front());
+                    if (!placement.wallBacked()) {
+                        rememberAndClearTransientBlock(board, block);
+                    }
+                    rememberAndClearTransientBlock(board, frameSpace);
+
+                    BlockKey blockKey = BlockKey.from(block);
+                    BlockKey frameSpaceKey = BlockKey.from(frameSpace);
+                    if (!placement.wallBacked()) {
+                        board.blocks().add(blockKey);
+                        blockBoards.put(blockKey, board);
+                    }
+                    board.blocks().add(frameSpaceKey);
+                    blockBoards.put(frameSpaceKey, board);
+
+                    ItemFrame frame = spawnFloatingMapFrame(placement.world(), block, placement.front());
+                    frame.addScoreboardTag(frameTag);
+                    board.frameIds().add(frame.getUniqueId());
+                    frameBoards.put(frame.getUniqueId(), board);
+                    frame.setItem(createMapItem(board, x, PALETTE_BLOCK_HEIGHT - 1 - y), false);
                 }
-                rememberAndClearTransientBlock(board, frameSpace);
-
-                BlockKey blockKey = BlockKey.from(block);
-                BlockKey frameSpaceKey = BlockKey.from(frameSpace);
-                if (!placement.wallBacked()) {
-                    board.blocks().add(blockKey);
-                    blockBoards.put(blockKey, board);
-                }
-                board.blocks().add(frameSpaceKey);
-                blockBoards.put(frameSpaceKey, board);
-
-                ItemFrame frame = spawnFloatingMapFrame(placement.world(), block, placement.front());
-                frame.addScoreboardTag(frameTag);
-                board.frameIds().add(frame.getUniqueId());
-                frameBoards.put(frame.getUniqueId(), board);
-                frame.setItem(createMapItem(placement.world(), board, x, PALETTE_BLOCK_HEIGHT - 1 - y), false);
             }
-        }
 
-        sendMaps(board);
-        player.sendMessage(ChatColor.GREEN + "팔레트 보드를 열었습니다. 색상과 브러시 크기를 선택할 수 있습니다.");
-        return true;
+            sendMaps(board);
+            player.sendMessage(ChatColor.GREEN + "팔레트 보드를 열었습니다. 색상과 브러시 크기를 선택할 수 있습니다.");
+            return true;
+        } catch (RuntimeException e) {
+            remove(playerId);
+            throw e;
+        }
     }
 
     public ArtworkPlacementCandidate placementCandidate(Player player) {
@@ -169,31 +180,37 @@ public final class PaletteBoardService {
     }
 
     public boolean remove(UUID ownerId) {
+        ReusableMapPoolService.MapLease mapLease = mapLeases.remove(ownerId);
         PaletteBoard board = boards.remove(ownerId);
         if (board == null) {
+            reusableMaps.release(mapLease);
             return false;
         }
 
-        for (UUID frameId : board.frameIds()) {
-            frameBoards.remove(frameId);
-            for (World world : plugin.getServer().getWorlds()) {
-                Entity entity = world.getEntity(frameId);
-                if (entity != null) {
-                    entity.remove();
-                    break;
+        try {
+            for (UUID frameId : board.frameIds()) {
+                frameBoards.remove(frameId);
+                for (World world : plugin.getServer().getWorlds()) {
+                    Entity entity = world.getEntity(frameId);
+                    if (entity != null) {
+                        entity.remove();
+                        break;
+                    }
                 }
             }
-        }
 
-        for (BlockKey key : board.blocks()) {
-            blockBoards.remove(key);
-            World world = plugin.getServer().getWorld(key.worldId());
-            if (world != null) {
-                world.getBlockAt(key.x(), key.y(), key.z()).setType(Material.AIR, false);
+            for (BlockKey key : board.blocks()) {
+                blockBoards.remove(key);
+                World world = plugin.getServer().getWorld(key.worldId());
+                if (world != null) {
+                    world.getBlockAt(key.x(), key.y(), key.z()).setType(Material.AIR, false);
+                }
             }
+            restoreTransientBlocks(board);
+            return true;
+        } finally {
+            reusableMaps.release(mapLease);
         }
-        restoreTransientBlocks(board);
-        return true;
     }
 
     public boolean hasBoard(UUID ownerId) {
@@ -411,21 +428,16 @@ public final class PaletteBoardService {
         return frame;
     }
 
-    private ItemStack createMapItem(World world, PaletteBoard board, int tileX, int tileY) {
-        MapView mapView = plugin.getServer().createMap(world);
-        board.mapTiles().add(new CanvasMapTile(mapView, tileX, tileY));
-        mapView.setTrackingPosition(false);
-        mapView.setUnlimitedTracking(false);
-        for (MapRenderer renderer : new ArrayList<>(mapView.getRenderers())) {
-            mapView.removeRenderer(renderer);
-        }
-        mapView.addRenderer(new PaletteMapRenderer(board, tileX, tileY, shaderRgbSupplier));
-
-        ItemStack item = new ItemStack(Material.FILLED_MAP);
-        MapMeta meta = (MapMeta) item.getItemMeta();
-        meta.setMapView(mapView);
-        item.setItemMeta(meta);
-        return item;
+    private ItemStack createMapItem(PaletteBoard board, int tileX, int tileY) {
+        ReusableMapPoolService.MapLease mapLease = mapLeases.get(board.ownerId());
+        int mapIndex = tileY * PALETTE_BLOCK_WIDTH + tileX;
+        ReusableMapPoolService.PreparedMap preparedMap = reusableMaps.prepareMap(
+                mapLease,
+                mapIndex,
+                new PaletteMapRenderer(board, tileX, tileY, shaderRgbSupplier)
+        );
+        board.mapTiles().add(new CanvasMapTile(preparedMap.mapView(), tileX, tileY));
+        return preparedMap.itemStack();
     }
 
     private PaletteLook createLook(PaletteBoard board, double u, double v, double distance) {

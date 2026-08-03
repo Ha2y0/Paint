@@ -1,6 +1,7 @@
 package org.ha2yo.paint.service;
 
 import org.bukkit.entity.Player;
+import org.bukkit.Location;
 import org.bukkit.scheduler.BukkitTask;
 import org.ha2yo.paint.Paint;
 import org.ha2yo.paint.model.CanvasMapTile;
@@ -26,6 +27,7 @@ public final class CanvasMapSyncService {
     private final int maxTileSendBudget;
     private final int flushBudget;
     private final long observerSendIntervalMillis;
+    private final double observerDistanceSquared;
     private final Set<UUID> pendingCanvasMapSends = new LinkedHashSet<>();
     private final Queue<UUID> rendererCompletedCanvasMapSends = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean rendererCompletedCanvasMapSendTaskQueued = new AtomicBoolean();
@@ -39,7 +41,8 @@ public final class CanvasMapSyncService {
             int tileSendBudget,
             int maxTileSendBudget,
             int flushBudget,
-            long observerSendIntervalMillis
+            long observerSendIntervalMillis,
+            double observerDistance
     ) {
         this.plugin = plugin;
         this.canvasResolver = canvasResolver;
@@ -47,6 +50,8 @@ public final class CanvasMapSyncService {
         this.maxTileSendBudget = maxTileSendBudget;
         this.flushBudget = flushBudget;
         this.observerSendIntervalMillis = observerSendIntervalMillis;
+        double safeObserverDistance = Math.max(1.0D, observerDistance);
+        this.observerDistanceSquared = safeObserverDistance * safeObserverDistance;
     }
 
     public void send(PlayerCanvas canvas) {
@@ -336,11 +341,20 @@ public final class CanvasMapSyncService {
             if (!player.getUniqueId().equals(canvas.ownerId())
                     && !canvas.editorIds().contains(player.getUniqueId())
                     && !canvas.isHiddenFor(player.getUniqueId())
-                    && player.getWorld().getUID().equals(canvas.plane().worldId())) {
+                    && player.getWorld().getUID().equals(canvas.plane().worldId())
+                    && isNearCanvas(player, canvas)) {
                 recipients.add(player);
             }
         }
         return recipients;
+    }
+
+    private boolean isNearCanvas(Player player, PlayerCanvas canvas) {
+        Location location = player.getLocation();
+        double deltaX = location.getX() - (canvas.plane().x() + 0.5D);
+        double deltaY = location.getY() - (canvas.plane().y() + 0.5D);
+        double deltaZ = location.getZ() - (canvas.plane().z() + 0.5D);
+        return deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ <= observerDistanceSquared;
     }
 
     private void sendToObserversIfDue(PlayerCanvas canvas, long nowMillis) {

@@ -5,6 +5,7 @@ import org.bukkit.scheduler.BukkitTask;
 import org.ha2yo.paint.api.PaintService;
 import org.ha2yo.paint.service.PaintMenuService;
 import org.ha2yo.paint.service.PaintTransientCleanupService;
+import org.ha2yo.paint.service.ReusableMapPoolService;
 import org.ha2yo.paint.service.ToolItemService;
 import org.ha2yo.paint.workflow.PaintControllerFeatureService;
 
@@ -20,6 +21,7 @@ public final class CoreRuntime {
     public ToolItemService toolItems;
     public PaintMenuService paintMenus;
     public PaintTransientCleanupService transientCleanup;
+    public ReusableMapPoolService reusableMaps;
     public PaintControllerFeatureService featureService;
     public BukkitTask paintTask;
 }

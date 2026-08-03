@@ -1,5 +1,6 @@
 map-render:
   canvas-rgb-mode: true
   display-rgb-mode: false
+  observer-distance: 64.0
 
 free-mode: true

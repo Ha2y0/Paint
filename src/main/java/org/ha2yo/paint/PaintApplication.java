@@ -40,6 +40,7 @@ public final class PaintApplication {
     public static final long STROKE_JOIN_MILLIS = 250L;
     public static final long LAYER_OPACITY_INTERACTION_LOCK_MILLIS = 350L;
     public static final long OBSERVER_CANVAS_MAP_SEND_INTERVAL_MILLIS = 450L;
+    public static final double DEFAULT_OBSERVER_CANVAS_MAP_DISTANCE = 64.0D;
     public static final long PALETTE_RIGHT_CLICK_SWING_GRACE_MILLIS = 250L;
     public static final long ARTWORK_PREVIEW_CLICK_COOLDOWN_MILLIS = 120L;
     public static final long ARTWORK_PREVIEW_OPEN_GRACE_MILLIS = 350L;

@@ -16,7 +16,13 @@ final class PaintGalleryBootstrap {
         var artworkRuntime = runtime.artwork();
         var placementRuntime = runtime.placement();
         var panelRuntime = runtime.panel();
-        artworkRuntime.artworkPreviews = new ArtworkPreviewService(c.plugin(), PaintApplication.MAP_SIZE, PaintApplication.BACKGROUND_COLOR, coreRuntime.featureService::shaderRgbEnabled);
+        artworkRuntime.artworkPreviews = new ArtworkPreviewService(
+                c.plugin(),
+                PaintApplication.MAP_SIZE,
+                PaintApplication.BACKGROUND_COLOR,
+                coreRuntime.featureService::shaderRgbEnabled,
+                coreRuntime.reusableMaps
+        );
         artworkRuntime.artworkGalleries = new ArtworkGalleryService(
                 c.plugin(),
                 artworkRuntime.artworkStorage,
@@ -47,6 +53,7 @@ final class PaintGalleryBootstrap {
                 artworkRuntime.editingArtworkIds::put,
                 canvasRuntime.canvasMaps::send,
                 canvasRuntime.paletteLayerWorkflow::updateLayerDisplays,
+                coreRuntime.reusableMaps,
                 coreRuntime.featureService::shaderRgbEnabled
         );
         artworkRuntime.artworkSaveWorkflow = new ArtworkSaveWorkflowService(

@@ -2,7 +2,6 @@ package org.ha2yo.paint.service;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Display;
@@ -12,9 +11,6 @@ import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.MapMeta;
-import org.bukkit.map.MapRenderer;
-import org.bukkit.map.MapView;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import org.bukkit.util.RayTraceResult;
@@ -66,17 +62,25 @@ public final class ArtworkPreviewService {
     private final int mapSize;
     private final Color backgroundColor;
     private final BooleanSupplier shaderRgbEnabled;
+    private final ReusableMapPoolService reusableMaps;
     private final Map<UUID, PreviewBoard> previews = new HashMap<>();
     private final Map<UUID, PreviewClick> clicks = new HashMap<>();
     private final Map<String, BufferedImage> iconCache = new HashMap<>();
     private final Set<UUID> displayEntityIds = new HashSet<>();
     private final Map<UUID, TooltipState> tooltips = new HashMap<>();
 
-    public ArtworkPreviewService(Paint plugin, int mapSize, Color backgroundColor, BooleanSupplier shaderRgbEnabled) {
+    public ArtworkPreviewService(
+            Paint plugin,
+            int mapSize,
+            Color backgroundColor,
+            BooleanSupplier shaderRgbEnabled,
+            ReusableMapPoolService reusableMaps
+    ) {
         this.plugin = plugin;
         this.mapSize = mapSize;
         this.backgroundColor = backgroundColor;
         this.shaderRgbEnabled = shaderRgbEnabled;
+        this.reusableMaps = reusableMaps;
     }
 
     public void showGallery(
@@ -106,12 +110,14 @@ public final class ArtworkPreviewService {
 
         List<UUID> entityIds = new ArrayList<>();
         PreviewClick[][] gridClicks = new PreviewClick[BOARD_HEIGHT][BOARD_WIDTH];
+        ReusableMapPoolService.MapLease mapLease = reusableMaps.acquire(world, BOARD_WIDTH * BOARD_HEIGHT);
+        int mapIndex = 0;
         try {
             String searchText = searchBarText(searchQuery);
             PreviewClick searchClick = new PreviewClick(PreviewClickAction.SEARCH, -1);
             for (int col = 0; col < BOARD_WIDTH; col++) {
                 ItemFrame frame = spawnFloatingMapFrame(world, center, right, front, col, SEARCH_ROW);
-                frame.setItem(createMapItem(world, searchBarTile(searchText, col, BOARD_WIDTH)), false);
+                frame.setItem(createMapItem(mapLease, mapIndex++, searchBarTile(searchText, col, BOARD_WIDTH)), false);
                 gridClicks[SEARCH_ROW][col] = searchClick;
                 register(entityIds, frame, searchClick);
             }
@@ -130,7 +136,7 @@ public final class ArtworkPreviewService {
                         }
                     }
                     ItemFrame frame = spawnFloatingMapFrame(world, center, right, front, col, row);
-                    frame.setItem(createMapItem(world, image), false);
+                    frame.setItem(createMapItem(mapLease, mapIndex++, image), false);
                     if (artworkIndex >= 0 && artworkIndex < artworks.size()) {
                         PreviewClick click = new PreviewClick(PreviewClickAction.ARTWORK, artworkIndex, artworks.get(artworkIndex).displayName());
                         gridClicks[row][col] = click;
@@ -161,15 +167,16 @@ public final class ArtworkPreviewService {
             for (int col = 0; col < actionButtons.length; col++) {
                 ItemFrame frame = spawnFloatingMapFrame(world, center, right, front, col, ACTION_ROW);
                 PreviewButton button = actionButtons[col];
-                frame.setItem(createMapItem(world, buttonTile(button)), false);
+                frame.setItem(createMapItem(mapLease, mapIndex++, buttonTile(button)), false);
                 PreviewClick click = new PreviewClick(button.action(), -1, "");
                 gridClicks[ACTION_ROW][col] = click;
                 register(entityIds, frame, click);
             }
 
-            previews.put(playerId, new PreviewBoard(entityIds, world.getUID(), center, front, right, gridClicks));
+            previews.put(playerId, new PreviewBoard(entityIds, world.getUID(), center, front, right, gridClicks, mapLease));
         } catch (RuntimeException e) {
             removeEntities(entityIds);
+            reusableMaps.release(mapLease);
             throw e;
         }
     }
@@ -290,6 +297,7 @@ public final class ArtworkPreviewService {
             return;
         }
         removeEntities(board.entityIds());
+        reusableMaps.release(board.mapLease());
     }
 
     private void removeEntities(List<UUID> entityIds) {
@@ -433,20 +441,8 @@ public final class ArtworkPreviewService {
     private static double previewUpSpan() {
         return (BOARD_HEIGHT - 1) * TILE_STEP;
     }
-    private ItemStack createMapItem(World world, BufferedImage image) {
-        MapView mapView = plugin.getServer().createMap(world);
-        mapView.setTrackingPosition(false);
-        mapView.setUnlimitedTracking(false);
-        for (MapRenderer renderer : new ArrayList<>(mapView.getRenderers())) {
-            mapView.removeRenderer(renderer);
-        }
-        mapView.addRenderer(new GalleryImageMapRenderer(image, 0, 0, mapSize, backgroundColor, shaderRgbEnabled.getAsBoolean()));
-
-        ItemStack item = new ItemStack(Material.FILLED_MAP);
-        MapMeta meta = (MapMeta) item.getItemMeta();
-        meta.setMapView(mapView);
-        item.setItemMeta(meta);
-        return item;
+    private ItemStack createMapItem(ReusableMapPoolService.MapLease mapLease, int mapIndex, BufferedImage image) {
+        return reusableMaps.mapItem(mapLease, mapIndex, image, shaderRgbEnabled.getAsBoolean());
     }
 
     private BufferedImage thumbnail(File file, boolean selected) throws IOException {
@@ -797,7 +793,8 @@ public final class ArtworkPreviewService {
             Vector center,
             BlockFace front,
             BlockFace right,
-            PreviewClick[][] gridClicks
+            PreviewClick[][] gridClicks,
+            ReusableMapPoolService.MapLease mapLease
     ) {
     }
 

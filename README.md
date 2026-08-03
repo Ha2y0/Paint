@@ -257,6 +257,7 @@ free-mode: false
 map-render:
   canvas-rgb-mode: true
   display-rgb-mode: false
+  observer-distance: 64.0
 
 free-mode: true
 ```
@@ -265,7 +266,10 @@ free-mode: true
 | --- | --- | --- |
 | `map-render.canvas-rgb-mode` | `true` | 그림을 그리는 캔버스에서 리소스팩 기반 RGB 색상 표현을 사용합니다. |
 | `map-render.display-rgb-mode` | `false` | 저장한 그림을 전시할 때 리소스팩 기반 RGB 색상 표현을 사용합니다. `false`면 Oklab 기반 기본 지도 색상으로 변환합니다. |
+| `map-render.observer-distance` | `64.0` | 캔버스 소유자와 편집자를 제외한 일반 관람자에게 실시간 지도 갱신을 전송할 최대 거리입니다. |
 | `free-mode` | `true` | `true`면 자유 설치 모드, `false`면 수동 모드입니다. |
+
+갤러리, 조작 패널, 캔버스, 팔레트, 전시에서 사용하는 지도는 `transient-map-pool.yml`에 기록된 지도 ID를 재사용합니다. 화면을 새로 열거나 캔버스와 팔레트를 다시 설치하고 전시를 다시 불러올 때 기존의 빈 슬롯을 우선 사용하며, 동시 사용량이 기존 풀보다 많을 때만 풀이 확장됩니다. 이 기능은 기존에 생성된 `world/data/map_*.dat` 파일을 자동으로 삭제하지 않습니다.
 
 ## 저장 구조
 
@@ -276,6 +280,7 @@ plugins/Paint/
 ├─ config.yml
 ├─ exhibits.yml
 ├─ manual-stations.yml
+├─ transient-map-pool.yml
 ├─ free-drafts/
 │  └─ <플레이어-UUID>.draft.dat
 ├─ manual-drafts/

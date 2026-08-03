@@ -32,7 +32,8 @@ final class PaintCanvasPaletteBootstrap {
                 c.plugin(),
                 PaintApplication.MAP_SIZE,
                 PaintApplication.BACKGROUND_COLOR,
-                coreRuntime.featureService::displayShaderRgbEnabled
+                coreRuntime.featureService::displayShaderRgbEnabled,
+                coreRuntime.reusableMaps
         );
         artworkRuntime.artworkDisplays.load();
         canvasRuntime.canvasMaps = new CanvasMapSyncService(
@@ -41,14 +42,19 @@ final class PaintCanvasPaletteBootstrap {
                 PaintApplication.CANVAS_MAP_TILE_SEND_BUDGET,
                 PaintApplication.MAX_CANVAS_MAP_TILE_SEND_BUDGET,
                 PaintApplication.CANVAS_MAP_SEND_FLUSH_BUDGET,
-                PaintApplication.OBSERVER_CANVAS_MAP_SEND_INTERVAL_MILLIS
+                PaintApplication.OBSERVER_CANVAS_MAP_SEND_INTERVAL_MILLIS,
+                c.plugin().getConfig().getDouble(
+                        "map-render.observer-distance",
+                        PaintApplication.DEFAULT_OBSERVER_CANVAS_MAP_DISTANCE
+                )
         );
         canvasRuntime.canvasMapRenderer = new CanvasMapRenderService(
                 c.plugin(),
                 PaintApplication.BACKGROUND_COLOR,
                 coreRuntime.featureService::shaderRgbEnabled,
                 coreRuntime.featureService::canvasOwnerName,
-                player -> drawingRuntime.advancedToolWorkflow == null ? null : drawingRuntime.advancedToolWorkflow.overlay(player)
+                player -> drawingRuntime.advancedToolWorkflow == null ? null : drawingRuntime.advancedToolWorkflow.overlay(player),
+                coreRuntime.reusableMaps
         );
         canvasRuntime.layerPanels = new LayerPanelService(
                 c.plugin(),
@@ -68,7 +74,8 @@ final class PaintCanvasPaletteBootstrap {
                 c.plugin(),
                 PaintApplication.PALETTE_FRAME_TAG,
                 coreRuntime.featureService::shaderRgbEnabled,
-                blockKey -> canvasRuntime.canvasLifecycle != null && canvasRuntime.canvasLifecycle.hasBlock(blockKey)
+                blockKey -> canvasRuntime.canvasLifecycle != null && canvasRuntime.canvasLifecycle.hasBlock(blockKey),
+                coreRuntime.reusableMaps
         );
         canvasRuntime.paletteWorkflow = new PaletteWorkflowService(
                 canvasRuntime.paletteBoards,
@@ -110,6 +117,9 @@ final class PaintCanvasPaletteBootstrap {
                 ownerId -> {
                     if (canvasRuntime.canvasMaps != null) {
                         canvasRuntime.canvasMaps.clearCanvas(ownerId);
+                    }
+                    if (canvasRuntime.canvasMapRenderer != null) {
+                        canvasRuntime.canvasMapRenderer.releaseCanvas(ownerId);
                     }
                 },
                 ownerId -> {

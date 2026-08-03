@@ -13,9 +13,6 @@ import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.MapMeta;
-import org.bukkit.map.MapRenderer;
-import org.bukkit.map.MapView;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import org.ha2yo.paint.Paint;
@@ -59,8 +56,10 @@ public final class ArtworkDisplayService {
     private final int mapSize;
     private final Color backgroundColor;
     private final BooleanSupplier shaderRgbEnabled;
+    private final ReusableMapPoolService reusableMaps;
     private final Map<UUID, PaintExhibit> exhibits = new HashMap<>();
     private final Map<UUID, List<UUID>> entityIdsByExhibit = new HashMap<>();
+    private final Map<UUID, ReusableMapPoolService.MapLease> mapLeasesByExhibit = new HashMap<>();
     private final Set<UUID> displayEntityIds = new HashSet<>();
     private final Set<BlockKey> protectedBlocks = new HashSet<>();
     private File exhibitsFile;
@@ -69,12 +68,14 @@ public final class ArtworkDisplayService {
             Paint plugin,
             int mapSize,
             Color backgroundColor,
-            BooleanSupplier shaderRgbEnabled
+            BooleanSupplier shaderRgbEnabled,
+            ReusableMapPoolService reusableMaps
     ) {
         this.plugin = plugin;
         this.mapSize = mapSize;
         this.backgroundColor = backgroundColor;
         this.shaderRgbEnabled = shaderRgbEnabled;
+        this.reusableMaps = reusableMaps;
     }
 
     public void load() {
@@ -179,6 +180,10 @@ public final class ArtworkDisplayService {
             }
         }
         entityIdsByExhibit.clear();
+        for (ReusableMapPoolService.MapLease mapLease : mapLeasesByExhibit.values()) {
+            reusableMaps.release(mapLease);
+        }
+        mapLeasesByExhibit.clear();
         displayEntityIds.clear();
         protectedBlocks.clear();
         for (World world : plugin.getServer().getWorlds()) {
@@ -287,21 +292,42 @@ public final class ArtworkDisplayService {
         Block origin = world.getBlockAt(exhibit.x(), exhibit.y(), exhibit.z());
         BlockFace front = exhibit.facing().getOppositeFace();
         List<UUID> entityIds = new ArrayList<>();
-        for (int y = 0; y < exhibit.height(); y++) {
-            for (int x = 0; x < exhibit.width(); x++) {
-                Block block = origin.getRelative(exhibit.right(), x).getRelative(exhibit.up(), y);
-                protectedBlocks.add(BlockKey.from(block));
-
-                ItemFrame frame = spawnMapFrame(world, block, front);
-                frame.addScoreboardTag(DISPLAY_TAG);
-                entityIds.add(frame.getUniqueId());
-                displayEntityIds.add(frame.getUniqueId());
-                int tileY = isHorizontal(front) ? y : exhibit.height() - 1 - y;
-                frame.setItem(createMapItem(world, image, x, tileY, front, exhibit.right(), exhibit.up(), shaderRgb), false);
-            }
-        }
-        spawnFrameBorder(world, origin, exhibit, front, entityIds);
+        ReusableMapPoolService.MapLease mapLease = reusableMaps.acquire(
+                world,
+                exhibit.width() * exhibit.height()
+        );
         entityIdsByExhibit.put(exhibit.id(), entityIds);
+        mapLeasesByExhibit.put(exhibit.id(), mapLease);
+        try {
+            for (int y = 0; y < exhibit.height(); y++) {
+                for (int x = 0; x < exhibit.width(); x++) {
+                    Block block = origin.getRelative(exhibit.right(), x).getRelative(exhibit.up(), y);
+                    protectedBlocks.add(BlockKey.from(block));
+
+                    ItemFrame frame = spawnMapFrame(world, block, front);
+                    frame.addScoreboardTag(DISPLAY_TAG);
+                    entityIds.add(frame.getUniqueId());
+                    displayEntityIds.add(frame.getUniqueId());
+                    int tileY = isHorizontal(front) ? y : exhibit.height() - 1 - y;
+                    int mapIndex = y * exhibit.width() + x;
+                    frame.setItem(createMapItem(
+                            mapLease,
+                            mapIndex,
+                            image,
+                            x,
+                            tileY,
+                            front,
+                            exhibit.right(),
+                            exhibit.up(),
+                            shaderRgb
+                    ), false);
+                }
+            }
+            spawnFrameBorder(world, origin, exhibit, front, entityIds);
+        } catch (RuntimeException e) {
+            clearExhibit(exhibit.id());
+            throw e;
+        }
     }
 
     private BufferedImage displayImage(BufferedImage resized, boolean shaderRgb) {
@@ -331,20 +357,26 @@ public final class ArtworkDisplayService {
     }
 
     private void clearExhibit(UUID exhibitId) {
+        ReusableMapPoolService.MapLease mapLease = mapLeasesByExhibit.remove(exhibitId);
         List<UUID> ids = entityIdsByExhibit.remove(exhibitId);
         if (ids == null) {
+            reusableMaps.release(mapLease);
             return;
         }
-        PaintExhibit exhibit = exhibits.get(exhibitId);
-        if (exhibit != null) {
-            removeProtectedBlocks(exhibit);
-        }
-        for (UUID id : ids) {
-            displayEntityIds.remove(id);
-            Entity entity = Bukkit.getEntity(id);
-            if (entity != null) {
-                entity.remove();
+        try {
+            PaintExhibit exhibit = exhibits.get(exhibitId);
+            if (exhibit != null) {
+                removeProtectedBlocks(exhibit);
             }
+            for (UUID id : ids) {
+                displayEntityIds.remove(id);
+                Entity entity = Bukkit.getEntity(id);
+                if (entity != null) {
+                    entity.remove();
+                }
+            }
+        } finally {
+            reusableMaps.release(mapLease);
         }
     }
 
@@ -367,7 +399,8 @@ public final class ArtworkDisplayService {
     }
 
     private ItemStack createMapItem(
-            World world,
+            ReusableMapPoolService.MapLease mapLease,
+            int mapIndex,
             BufferedImage image,
             int tileX,
             int tileY,
@@ -376,23 +409,13 @@ public final class ArtworkDisplayService {
             BlockFace up,
             boolean shaderRgb
     ) {
-        MapView mapView = plugin.getServer().createMap(world);
-        mapView.setTrackingPosition(false);
-        mapView.setUnlimitedTracking(false);
-        for (MapRenderer renderer : new ArrayList<>(mapView.getRenderers())) {
-            mapView.removeRenderer(renderer);
-        }
+        GalleryImageMapRenderer renderer;
         if (isHorizontal(front)) {
-            mapView.addRenderer(new GalleryImageMapRenderer(image, tileX, tileY, mapSize, backgroundColor, shaderRgb, front, right, up));
+            renderer = new GalleryImageMapRenderer(image, tileX, tileY, mapSize, backgroundColor, shaderRgb, front, right, up);
         } else {
-            mapView.addRenderer(new GalleryImageMapRenderer(image, tileX, tileY, mapSize, backgroundColor, shaderRgb));
+            renderer = new GalleryImageMapRenderer(image, tileX, tileY, mapSize, backgroundColor, shaderRgb);
         }
-
-        ItemStack item = new ItemStack(Material.FILLED_MAP);
-        MapMeta meta = (MapMeta) item.getItemMeta();
-        meta.setMapView(mapView);
-        item.setItemMeta(meta);
-        return item;
+        return reusableMaps.prepareMap(mapLease, mapIndex, renderer).itemStack();
     }
 
     private boolean isHorizontal(BlockFace front) {
