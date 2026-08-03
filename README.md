@@ -52,7 +52,7 @@ Minecraft Paper 서버에서 그림판 기능을 제공하는 플러그인입니
 <img width="2560" height="1440" alt="2026-07-01_01 38 37" src="https://github.com/user-attachments/assets/8ac488bc-2969-4434-8817-a10bc00ad75b" />
 
 ### 작품 전시
-
+(전시 버튼 우클릭은 작품 전시, 전시 버튼 좌클릭은 테두리 설정)
 <img width="2560" height="1440" alt="2026-07-01_01 39 47" src="https://github.com/user-attachments/assets/3e64383a-3e4d-466d-8d8e-eb8ce8a55790" />
 <img width="2560" height="1440" alt="2026-07-01_01 40 00" src="https://github.com/user-attachments/assets/78e8fd06-68ce-4685-a0d4-57e20b7117a5" />
 <img width="2560" height="1440" alt="2026-07-01_01 40 15" src="https://github.com/user-attachments/assets/6b1894a1-c1fd-43e2-9c32-8e70711ca629" />
