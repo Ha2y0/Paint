@@ -36,7 +36,6 @@ public final class CanvasEventWorkflowService {
     private final long paletteRightClickSwingGraceMillis;
     private final Consumer<UUID> paletteBoardRemover;
     private final Predicate<Player> artworkPreviewLeftClickHandler;
-    private final Predicate<Player> exhibitRemovalSwingHandler;
     private final Predicate<Player> canvasPlacementSwingHandler;
     private final Predicate<Player> artworkPlacementSwingHandler;
     private final Predicate<Player> palettePlacementSwingHandler;
@@ -57,7 +56,6 @@ public final class CanvasEventWorkflowService {
             long paletteRightClickSwingGraceMillis,
             Consumer<UUID> paletteBoardRemover,
             Predicate<Player> artworkPreviewLeftClickHandler,
-            Predicate<Player> exhibitRemovalSwingHandler,
             Predicate<Player> canvasPlacementSwingHandler,
             Predicate<Player> artworkPlacementSwingHandler,
             Predicate<Player> palettePlacementSwingHandler,
@@ -77,7 +75,6 @@ public final class CanvasEventWorkflowService {
         this.paletteRightClickSwingGraceMillis = paletteRightClickSwingGraceMillis;
         this.paletteBoardRemover = paletteBoardRemover;
         this.artworkPreviewLeftClickHandler = artworkPreviewLeftClickHandler;
-        this.exhibitRemovalSwingHandler = exhibitRemovalSwingHandler;
         this.canvasPlacementSwingHandler = canvasPlacementSwingHandler;
         this.artworkPlacementSwingHandler = artworkPlacementSwingHandler;
         this.palettePlacementSwingHandler = palettePlacementSwingHandler;
@@ -128,9 +125,6 @@ public final class CanvasEventWorkflowService {
     public void onPaletteSwing(PlayerAnimationEvent event) {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
-        if (exhibitRemovalSwingHandler.test(player)) {
-            return;
-        }
         if (canvasPlacementSwingHandler.test(player)) {
             return;
         }

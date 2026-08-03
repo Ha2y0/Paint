@@ -62,6 +62,7 @@ public final class ArtworkDisplayService {
     private final Map<UUID, ReusableMapPoolService.MapLease> mapLeasesByExhibit = new HashMap<>();
     private final Set<UUID> displayEntityIds = new HashSet<>();
     private final Set<BlockKey> protectedBlocks = new HashSet<>();
+    private final Set<ExhibitFaceKey> occupiedFaces = new HashSet<>();
     private File exhibitsFile;
 
     public ArtworkDisplayService(
@@ -137,6 +138,7 @@ public final class ArtworkDisplayService {
                 placement.frameStyle(),
                 placement.frameMaterial()
         );
+        removeOverlappingExhibits(exhibit);
         exhibits.put(exhibit.id(), exhibit);
         save();
         spawn(exhibit, source, true);
@@ -186,6 +188,7 @@ public final class ArtworkDisplayService {
         mapLeasesByExhibit.clear();
         displayEntityIds.clear();
         protectedBlocks.clear();
+        occupiedFaces.clear();
         for (World world : plugin.getServer().getWorlds()) {
             for (Entity entity : new ArrayList<>(world.getEntities())) {
                 if (entity.getScoreboardTags().contains(DISPLAY_TAG)) {
@@ -201,6 +204,10 @@ public final class ArtworkDisplayService {
 
     public boolean isProtectedBlock(BlockKey blockKey) {
         return protectedBlocks.contains(blockKey);
+    }
+
+    public boolean isExhibitFaceOccupied(BlockKey blockKey, BlockFace facing) {
+        return occupiedFaces.contains(new ExhibitFaceKey(blockKey, facing));
     }
 
     public Optional<PaintExhibit> findByEntity(UUID entityId) {
@@ -258,12 +265,11 @@ public final class ArtworkDisplayService {
     }
 
     public boolean removeById(UUID exhibitId) throws IOException {
-        PaintExhibit exhibit = exhibits.remove(exhibitId);
+        PaintExhibit exhibit = exhibits.get(exhibitId);
         if (exhibit == null) {
             return false;
         }
-        clearExhibit(exhibitId);
-        removeProtectedBlocks(exhibit);
+        removeOverlappingExhibits(exhibit);
         save();
         return true;
     }
@@ -302,7 +308,9 @@ public final class ArtworkDisplayService {
             for (int y = 0; y < exhibit.height(); y++) {
                 for (int x = 0; x < exhibit.width(); x++) {
                     Block block = origin.getRelative(exhibit.right(), x).getRelative(exhibit.up(), y);
-                    protectedBlocks.add(BlockKey.from(block));
+                    BlockKey blockKey = BlockKey.from(block);
+                    protectedBlocks.add(blockKey);
+                    occupiedFaces.add(new ExhibitFaceKey(blockKey, exhibit.facing()));
 
                     ItemFrame frame = spawnMapFrame(world, block, front);
                     frame.addScoreboardTag(DISPLAY_TAG);
@@ -353,21 +361,61 @@ public final class ArtworkDisplayService {
     }
 
     private void removeProtectedBlocks(PaintExhibit exhibit) {
-        protectedBlocks.removeAll(protectedBlocksOf(exhibit));
+        Set<BlockKey> blocks = protectedBlocksOf(exhibit);
+        for (BlockKey block : blocks) {
+            occupiedFaces.remove(new ExhibitFaceKey(block, exhibit.facing()));
+            boolean occupiedOnAnotherFace = occupiedFaces.stream()
+                    .anyMatch(faceKey -> faceKey.blockKey().equals(block));
+            if (!occupiedOnAnotherFace) {
+                protectedBlocks.remove(block);
+            }
+        }
+    }
+
+    private void removeOverlappingExhibits(PaintExhibit target) {
+        List<PaintExhibit> overlapping = overlappingExhibits(target);
+        for (PaintExhibit exhibit : overlapping) {
+            clearExhibit(exhibit.id());
+        }
+        for (PaintExhibit exhibit : overlapping) {
+            exhibits.remove(exhibit.id());
+        }
+    }
+
+    private List<PaintExhibit> overlappingExhibits(PaintExhibit target) {
+        List<PaintExhibit> overlapping = new ArrayList<>();
+        Set<BlockKey> targetBlocks = protectedBlocksOf(target);
+        for (PaintExhibit candidate : exhibits.values()) {
+            if (candidate.id().equals(target.id())) {
+                overlapping.add(candidate);
+                continue;
+            }
+            if (!candidate.worldName().equals(target.worldName()) || candidate.facing() != target.facing()) {
+                continue;
+            }
+            Set<BlockKey> candidateBlocks = protectedBlocksOf(candidate);
+            for (BlockKey block : targetBlocks) {
+                if (candidateBlocks.contains(block)) {
+                    overlapping.add(candidate);
+                    break;
+                }
+            }
+        }
+        return overlapping;
     }
 
     private void clearExhibit(UUID exhibitId) {
         ReusableMapPoolService.MapLease mapLease = mapLeasesByExhibit.remove(exhibitId);
         List<UUID> ids = entityIdsByExhibit.remove(exhibitId);
+        PaintExhibit exhibit = exhibits.get(exhibitId);
+        if (exhibit != null) {
+            removeProtectedBlocks(exhibit);
+        }
         if (ids == null) {
             reusableMaps.release(mapLease);
             return;
         }
         try {
-            PaintExhibit exhibit = exhibits.get(exhibitId);
-            if (exhibit != null) {
-                removeProtectedBlocks(exhibit);
-            }
             for (UUID id : ids) {
                 displayEntityIds.remove(id);
                 Entity entity = Bukkit.getEntity(id);
@@ -667,6 +715,9 @@ public final class ArtworkDisplayService {
             case DOWN -> 90.0F;
             default -> 0.0F;
         };
+    }
+
+    private record ExhibitFaceKey(BlockKey blockKey, BlockFace facing) {
     }
 
     public record Placement(

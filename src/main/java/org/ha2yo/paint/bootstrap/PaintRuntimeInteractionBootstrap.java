@@ -55,7 +55,6 @@ final class PaintRuntimeInteractionBootstrap {
                 canvasRuntime.paletteLayerWorkflow::removePaletteBoard,
                 player -> artworkRuntime.artworkGalleryWorkflow != null
                         && artworkRuntime.artworkGalleryWorkflow.handleLookedLeftClick(player),
-                placementRuntime.placementUiWorkflow::handleExhibitRemovalSwing,
                 placementRuntime.placementUiWorkflow::handleCanvasSwing,
                 placementRuntime.placementUiWorkflow::handleArtworkSwing,
                 canvasRuntime.paletteWorkflow::handlePlacementSwing,

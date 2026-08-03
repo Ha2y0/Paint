@@ -23,17 +23,25 @@ import org.joml.Vector3f;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 public final class PlacementPreviewService {
     private final Paint plugin;
     private final String previewTag;
     private final Predicate<BlockKey> blockedBlock;
+    private final BiPredicate<BlockKey, BlockFace> blockedArtworkFace;
 
-    public PlacementPreviewService(Paint plugin, String previewTag, Predicate<BlockKey> blockedBlock) {
+    public PlacementPreviewService(
+            Paint plugin,
+            String previewTag,
+            Predicate<BlockKey> blockedBlock,
+            BiPredicate<BlockKey, BlockFace> blockedArtworkFace
+    ) {
         this.plugin = plugin;
         this.previewTag = previewTag;
         this.blockedBlock = blockedBlock;
+        this.blockedArtworkFace = blockedArtworkFace;
     }
 
     public ArtworkPlacementCandidate artworkCandidate(Player player, int width, int height, int preferredDistance) {
@@ -173,7 +181,7 @@ public final class PlacementPreviewService {
                 if (!backing.getType().isSolid()) {
                     return false;
                 }
-                if (blockedBlock.test(BlockKey.from(backing))) {
+                if (blockedArtworkFace.test(BlockKey.from(backing), front.getOppositeFace())) {
                     return false;
                 }
                 Block displaySpace = backing.getRelative(front);

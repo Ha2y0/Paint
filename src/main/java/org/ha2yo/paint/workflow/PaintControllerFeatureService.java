@@ -305,6 +305,15 @@ public final class PaintControllerFeatureService {
                 || (displays != null && displays.isProtectedBlock(blockKey));
     }
 
+    public boolean isArtworkPlacementFaceBlocked(BlockKey blockKey, BlockFace facing) {
+        CanvasLifecycleService lifecycle = canvasLifecycle.get();
+        PaletteBoardService palettes = paletteBoards.get();
+        ArtworkDisplayService displays = artworkDisplays.get();
+        return (lifecycle != null && lifecycle.hasBlock(blockKey))
+                || (palettes != null && palettes.isBlockOccupied(blockKey))
+                || (displays != null && displays.isExhibitFaceOccupied(blockKey, facing));
+    }
+
     public void removeArtworkPlacementDisplays(ArtworkPlacementSession session) {
         if (session == null) {
             return;

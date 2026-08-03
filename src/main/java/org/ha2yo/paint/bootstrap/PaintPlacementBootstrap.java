@@ -22,7 +22,12 @@ final class PaintPlacementBootstrap {
         var artworkRuntime = runtime.artwork();
         var placementRuntime = runtime.placement();
         var panelRuntime = runtime.panel();
-        placementRuntime.placementPreviews = new PlacementPreviewService(c.plugin(), PaintApplication.ARTWORK_PLACEMENT_PREVIEW_TAG, coreRuntime.featureService::isPlacementBlockBlocked);
+        placementRuntime.placementPreviews = new PlacementPreviewService(
+                c.plugin(),
+                PaintApplication.ARTWORK_PLACEMENT_PREVIEW_TAG,
+                coreRuntime.featureService::isPlacementBlockBlocked,
+                coreRuntime.featureService::isArtworkPlacementFaceBlocked
+        );
         placementRuntime.canvasPlacementModes = new CanvasPlacementModeService(
                 c.plugin(),
                 coreRuntime.previewActionKey,
