@@ -26,7 +26,6 @@ public final class PaintCommand implements TabExecutor {
             "color",
             "station"
     );
-    private static final List<String> MANUAL_MODE_ADMIN_SUBCOMMANDS = List.of("station", "gallery", "exhibits");
     private static final List<String> EXHIBIT_SUBCOMMANDS = List.of("reload", "remove");
     private static final List<String> STATION_SUBCOMMANDS = List.of("canvas", "gallery", "control", "palette", "list", "remove");
     private static final List<String> CANVAS_SIZE_SUGGESTIONS = List.of("5", "7", "10");
@@ -52,11 +51,6 @@ public final class PaintCommand implements TabExecutor {
         boolean admin = controller.canUseAdminPaintCommands(player);
         if (!freeMode && !admin) {
             player.sendMessage(ChatColor.YELLOW + "현재 수동 모드입니다. 지정된 그림판을 우클릭해 주세요.");
-            return true;
-        }
-        if (!freeMode && !isManualModeAdminCommand(args)) {
-            player.sendMessage(ChatColor.YELLOW + "현재 수동 모드입니다. 지정된 그림판을 우클릭하거나 "
-                    + ChatColor.WHITE + "/paint station" + ChatColor.YELLOW + " 명령어를 사용하세요.");
             return true;
         }
         if (controller.isPaintUiOpen(player.getUniqueId())) {
@@ -102,14 +96,6 @@ public final class PaintCommand implements TabExecutor {
             if (!controller.canUseAdminPaintCommands(player)) {
                 return List.of();
             }
-            if (!controller.isFreeMode(player)) {
-                if (args.length == 1) {
-                    return filter(MANUAL_MODE_ADMIN_SUBCOMMANDS, args[0]);
-                }
-                if (!isManualModeAdminCommand(args)) {
-                    return List.of();
-                }
-            }
         }
         if (args.length == 1) {
             return filter(ROOT_SUBCOMMANDS, args[0]);
@@ -133,14 +119,6 @@ public final class PaintCommand implements TabExecutor {
             return filter(CANVAS_SIZE_SUGGESTIONS, args[args.length - 1]);
         }
         return List.of();
-    }
-
-    private boolean isManualModeAdminCommand(String[] args) {
-        if (args.length == 0) {
-            return false;
-        }
-        String subcommand = args[0].toLowerCase(Locale.ROOT);
-        return MANUAL_MODE_ADMIN_SUBCOMMANDS.contains(subcommand);
     }
 
     private void handleNewCommand(Player player, String label, String[] args) {
