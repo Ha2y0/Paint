@@ -26,6 +26,7 @@ public final class PaintPanelWorkflowService {
     private final int defaultCanvasBlockHeight;
     private final int maxCanvasBlockSize;
     private final Predicate<Player> canvasCreateGuard;
+    private final Predicate<Player> freeDraftChecker;
     private final Function<UUID, Boolean> canvasClearer;
     private final Function<UUID, Boolean> canvasRemover;
     private final Consumer<Player> saveHandler;
@@ -48,6 +49,7 @@ public final class PaintPanelWorkflowService {
             int defaultCanvasBlockHeight,
             int maxCanvasBlockSize,
             Predicate<Player> canvasCreateGuard,
+            Predicate<Player> freeDraftChecker,
             Function<UUID, Boolean> canvasClearer,
             Function<UUID, Boolean> canvasRemover,
             Consumer<Player> saveHandler,
@@ -69,6 +71,7 @@ public final class PaintPanelWorkflowService {
         this.defaultCanvasBlockHeight = defaultCanvasBlockHeight;
         this.maxCanvasBlockSize = maxCanvasBlockSize;
         this.canvasCreateGuard = canvasCreateGuard;
+        this.freeDraftChecker = freeDraftChecker;
         this.canvasClearer = canvasClearer;
         this.canvasRemover = canvasRemover;
         this.saveHandler = saveHandler;
@@ -98,6 +101,11 @@ public final class PaintPanelWorkflowService {
                 if (!canvasCreateGuard.test(player)) {
                     return;
                 }
+                if (freeDraftChecker.test(player)) {
+                    paintPanelModeEnder.accept(player, true);
+                    canvasPlacementStarter.start(player, size.width(), size.height());
+                    return;
+                }
                 openCanvasSizeMenu(player);
             }
             case CLEAR -> {
@@ -116,9 +124,9 @@ public final class PaintPanelWorkflowService {
                 }
                 paintPanelModeEnder.accept(player, true);
                 if (canvasRemover.apply(playerId)) {
-                    player.sendMessage(ChatColor.YELLOW + "Paint 캔버스를 제거했습니다.");
+                    player.sendMessage(ChatColor.YELLOW + "Paint 캔버스 또는 임시 그림을 제거했습니다.");
                 } else {
-                    player.sendMessage(ChatColor.RED + "제거할 캔버스가 없습니다.");
+                    player.sendMessage(ChatColor.RED + "제거할 캔버스나 임시 그림이 없습니다.");
                 }
             }
             case SAVE -> {
@@ -169,7 +177,17 @@ public final class PaintPanelWorkflowService {
             pendingCanvasRemoveConfirms.remove(playerId);
         }
         switch (action) {
-            case NEW -> openCanvasSizeMenu(player);
+            case NEW -> {
+                if (!canvasCreateGuard.test(player)) {
+                    return;
+                }
+                if (freeDraftChecker.test(player)) {
+                    player.closeInventory();
+                    canvasPlacementStarter.start(player, defaultCanvasBlockWidth, defaultCanvasBlockHeight);
+                    return;
+                }
+                openCanvasSizeMenu(player);
+            }
             case CLEAR -> {
                 if (canvasClearer.apply(player.getUniqueId())) {
                     player.sendMessage(ChatColor.YELLOW + "Paint 캔버스를 비웠습니다.");
@@ -186,10 +204,10 @@ public final class PaintPanelWorkflowService {
                 }
                 player.closeInventory();
                 if (canvasRemover.apply(playerId)) {
-                    player.sendMessage(ChatColor.YELLOW + "Paint 캔버스를 제거했습니다.");
+                    player.sendMessage(ChatColor.YELLOW + "Paint 캔버스 또는 임시 그림을 제거했습니다.");
                     return;
                 }
-                player.sendMessage(ChatColor.RED + "제거할 캔버스가 없습니다.");
+                player.sendMessage(ChatColor.RED + "제거할 캔버스나 임시 그림이 없습니다.");
             }
             case SAVE -> {
                 player.closeInventory();
@@ -223,6 +241,9 @@ public final class PaintPanelWorkflowService {
                 paintMenus.openMainMenu(player);
             }
             case CREATE_CANVAS -> {
+                if (!canvasCreateGuard.test(player)) {
+                    return;
+                }
                 pendingMenuCanvasSizes.remove(playerId);
                 player.closeInventory();
                 canvasPlacementStarter.start(player, size.width(), size.height());

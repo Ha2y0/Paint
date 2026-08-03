@@ -265,6 +265,9 @@ public final class ArtworkGalleryService {
     }
 
     private ClickResult handleClick(Player player, ArtworkPreviewService.PreviewClick click, boolean leftClick) {
+        if (leftClick && click.action() != ArtworkPreviewService.PreviewClickAction.EXHIBIT) {
+            return ClickResult.handled();
+        }
         long now = System.currentTimeMillis();
         UUID playerId = player.getUniqueId();
         Long readyAt = interactionReadyTimes.get(playerId);

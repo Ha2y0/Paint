@@ -107,6 +107,9 @@ public final class PaintInteractionFacade {
     boolean isManualStationPlacementActive(UUID playerId) {
         return manualStationWorkflow != null && manualStationWorkflow.isPlacementActive(playerId);
     }
+    boolean isUsingManualStation(UUID playerId) {
+        return manualStationWorkflow != null && manualStationWorkflow.isUsingStation(playerId);
+    }
     boolean isExhibitRemovalModeActive(UUID playerId) {
         return placementModeWorkflow != null && placementModeWorkflow.isExhibitRemovalActive(playerId);
     }

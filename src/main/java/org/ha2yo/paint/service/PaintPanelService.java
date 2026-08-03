@@ -7,6 +7,7 @@ import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.GlowItemFrame;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
@@ -46,6 +47,7 @@ public final class PaintPanelService {
     private static final double TILE_STEP = 1.0D;
     private static final Color NEW_BUTTON_COLOR = new Color(58, 132, 112);
     private static final Color SAVE_BUTTON_COLOR = new Color(160, 128, 48);
+    private static final Color DRAFT_SAVE_BUTTON_COLOR = new Color(76, 112, 154);
     private static final Color GALLERY_BUTTON_COLOR = new Color(76, 96, 148);
     private static final Color SHOW_BUTTON_COLOR = new Color(62, 128, 122);
     private static final Color DELETE_BUTTON_COLOR = new Color(132, 78, 60);
@@ -150,6 +152,7 @@ public final class PaintPanelService {
         List<UUID> entityIds = new ArrayList<>();
         PanelButton[] buttons = {
                 new PanelButton("SAVE", "ART", PaintMenuService.MenuAction.SAVE, SAVE_BUTTON_COLOR),
+                new PanelButton("TEMP", "SAVE", PaintMenuService.MenuAction.DRAFT_SAVE, DRAFT_SAVE_BUTTON_COLOR),
                 new PanelButton(confirmRemove ? "OK?" : "END", "CANVAS", PaintMenuService.MenuAction.REMOVE, confirmRemove ? DELETE_CONFIRM_BUTTON_COLOR : DELETE_BUTTON_COLOR)
         };
         int columns = vertical ? 1 : buttons.length;
@@ -277,6 +280,7 @@ public final class PaintPanelService {
         return switch (button.action()) {
             case NEW -> "새 캔버스";
             case SAVE -> "그림 저장";
+            case DRAFT_SAVE -> "임시저장";
             case LIST -> "내 그림";
             case SHOW -> "전시 제거";
             case REMOVE -> button.label().equals("OK?") ? "삭제 확인" : "캔버스 삭제";
@@ -365,7 +369,7 @@ public final class PaintPanelService {
         location.setYaw(yawFor(front));
         location.setPitch(0.0F);
 
-        ItemFrame frame = world.spawn(location, ItemFrame.class);
+        ItemFrame frame = world.spawn(location, GlowItemFrame.class);
         frame.setFacingDirection(front, true);
         frame.setFixed(true);
         frame.setVisible(false);
@@ -423,6 +427,7 @@ public final class PaintPanelService {
         return switch (button.action()) {
             case NEW -> loadIcon("new.png");
             case SAVE -> loadIcon("save.png");
+            case DRAFT_SAVE -> loadIcon("back.png");
             case LIST -> loadIcon("gallery.png");
             case SHOW -> loadIcon("exhibit_remove.png");
             case REMOVE -> loadIcon("remove.png");

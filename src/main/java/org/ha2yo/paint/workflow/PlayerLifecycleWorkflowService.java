@@ -29,6 +29,7 @@ public final class PlayerLifecycleWorkflowService {
     private final Consumer<Player> inventoryRestorer;
     private final Consumer<UUID> strokeStateCleaner;
     private final Consumer<Player> manualStationQuitHandler;
+    private final Consumer<Player> freeModeQuitHandler;
 
     public PlayerLifecycleWorkflowService(
             DrawingSessionService drawingSessions,
@@ -48,7 +49,8 @@ public final class PlayerLifecycleWorkflowService {
             BiConsumer<Player, Boolean> paintPanelModeEnder,
             Consumer<Player> inventoryRestorer,
             Consumer<UUID> strokeStateCleaner,
-            Consumer<Player> manualStationQuitHandler
+            Consumer<Player> manualStationQuitHandler,
+            Consumer<Player> freeModeQuitHandler
     ) {
         this.drawingSessions = drawingSessions;
         this.advancedToolSessions = advancedToolSessions;
@@ -68,6 +70,7 @@ public final class PlayerLifecycleWorkflowService {
         this.inventoryRestorer = inventoryRestorer;
         this.strokeStateCleaner = strokeStateCleaner;
         this.manualStationQuitHandler = manualStationQuitHandler;
+        this.freeModeQuitHandler = freeModeQuitHandler;
     }
 
     public void onQuit(PlayerQuitEvent event) {
@@ -75,6 +78,9 @@ public final class PlayerLifecycleWorkflowService {
         UUID playerId = player.getUniqueId();
         if (manualStationQuitHandler != null) {
             manualStationQuitHandler.accept(player);
+        }
+        if (freeModeQuitHandler != null) {
+            freeModeQuitHandler.accept(player);
         }
         drawingSessions.stop(playerId);
         paletteBoardRemover.accept(playerId);

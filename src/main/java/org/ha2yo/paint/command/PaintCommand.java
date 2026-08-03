@@ -26,8 +26,9 @@ public final class PaintCommand implements TabExecutor {
             "color",
             "station"
     );
+    private static final List<String> MANUAL_MODE_ADMIN_SUBCOMMANDS = List.of("station", "gallery", "exhibits");
     private static final List<String> EXHIBIT_SUBCOMMANDS = List.of("reload", "remove");
-    private static final List<String> STATION_SUBCOMMANDS = List.of("canvas", "gallery", "control", "list", "remove");
+    private static final List<String> STATION_SUBCOMMANDS = List.of("canvas", "gallery", "control", "palette", "list", "remove");
     private static final List<String> CANVAS_SIZE_SUGGESTIONS = List.of("5", "7", "10");
     private static final List<String> CONTROL_LAYOUT_SUGGESTIONS = List.of("horizontal", "vertical");
 
@@ -47,8 +48,15 @@ public final class PaintCommand implements TabExecutor {
             player.sendMessage(ChatColor.RED + "Paint 명령어를 사용할 수 없습니다.");
             return true;
         }
-        if (!controller.isFreeMode(player) && !controller.canUseAdminPaintCommands(player) && !isStationCommand(args)) {
-            player.sendMessage(ChatColor.YELLOW + "현재 모드에서는 사용 불가한 명령어입니다.");
+        boolean freeMode = controller.isFreeMode(player);
+        boolean admin = controller.canUseAdminPaintCommands(player);
+        if (!freeMode && !admin) {
+            player.sendMessage(ChatColor.YELLOW + "현재 수동 모드입니다. 지정된 그림판을 우클릭해 주세요.");
+            return true;
+        }
+        if (!freeMode && !isManualModeAdminCommand(args)) {
+            player.sendMessage(ChatColor.YELLOW + "현재 수동 모드입니다. 지정된 그림판을 우클릭하거나 "
+                    + ChatColor.WHITE + "/paint station" + ChatColor.YELLOW + " 명령어를 사용하세요.");
             return true;
         }
         if (controller.isPaintUiOpen(player.getUniqueId())) {
@@ -56,7 +64,7 @@ public final class PaintCommand implements TabExecutor {
                 controller.repositionPaintUi(player);
                 return true;
             }
-            if (!controller.canUseAdminPaintCommands(player)) {
+            if (!admin) {
                 player.sendMessage(ChatColor.YELLOW + "이미 Paint 창이 열려 있습니다. /paint 만 입력하면 현재 위치로 다시 소환됩니다.");
                 return true;
             }
@@ -66,7 +74,7 @@ public final class PaintCommand implements TabExecutor {
             controller.openPaintMainPanel(player, false);
             return true;
         }
-        if (!controller.canUseAdminPaintCommands(player)) {
+        if (!admin) {
             player.sendMessage(ChatColor.RED + "일반 유저는 /paint 명령어만 사용할 수 있습니다.");
             return true;
         }
@@ -90,8 +98,18 @@ public final class PaintCommand implements TabExecutor {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (sender instanceof Player player && !controller.canUseAdminPaintCommands(player)) {
-            return List.of();
+        if (sender instanceof Player player) {
+            if (!controller.canUseAdminPaintCommands(player)) {
+                return List.of();
+            }
+            if (!controller.isFreeMode(player)) {
+                if (args.length == 1) {
+                    return filter(MANUAL_MODE_ADMIN_SUBCOMMANDS, args[0]);
+                }
+                if (!isManualModeAdminCommand(args)) {
+                    return List.of();
+                }
+            }
         }
         if (args.length == 1) {
             return filter(ROOT_SUBCOMMANDS, args[0]);
@@ -117,8 +135,12 @@ public final class PaintCommand implements TabExecutor {
         return List.of();
     }
 
-    private boolean isStationCommand(String[] args) {
-        return args.length > 0 && "station".equalsIgnoreCase(args[0]);
+    private boolean isManualModeAdminCommand(String[] args) {
+        if (args.length == 0) {
+            return false;
+        }
+        String subcommand = args[0].toLowerCase(Locale.ROOT);
+        return MANUAL_MODE_ADMIN_SUBCOMMANDS.contains(subcommand);
     }
 
     private void handleNewCommand(Player player, String label, String[] args) {
@@ -241,6 +263,7 @@ public final class PaintCommand implements TabExecutor {
             case "canvas" -> handleStationCanvasCommand(player, label, args);
             case "gallery" -> handleStationGalleryCommand(player, label, args);
             case "control" -> handleStationControlCommand(player, label, args);
+            case "palette" -> handleStationPaletteCommand(player, label, args);
             case "list" -> controller.listManualStations(player);
             case "remove" -> {
                 if (args.length < 3) {
@@ -291,6 +314,14 @@ public final class PaintCommand implements TabExecutor {
         controller.setManualStationControl(player, args[2], layout);
     }
 
+    private void handleStationPaletteCommand(Player player, String label, String[] args) {
+        if (args.length != 3) {
+            player.sendMessage(ChatColor.RED + "사용법: /" + label + " station palette <번호>");
+            return;
+        }
+        controller.setManualStationPalette(player, args[2]);
+    }
+
     private StationPanelSlot.Layout parseControlLayout(Player player, String label, String[] args) {
         if (args.length == 3) {
             return StationPanelSlot.Layout.HORIZONTAL;
@@ -311,6 +342,7 @@ public final class PaintCommand implements TabExecutor {
         player.sendMessage(ChatColor.YELLOW + "/" + label + " station canvas <번호> <너비> <높이>" + ChatColor.GRAY + " - 바라보는 블록을 캔버스 위치로 저장합니다.");
         player.sendMessage(ChatColor.YELLOW + "/" + label + " station gallery <번호>" + ChatColor.GRAY + " - 현재 위치 기준으로 갤러리 위치를 저장합니다.");
         player.sendMessage(ChatColor.YELLOW + "/" + label + " station control <번호> [horizontal|vertical]" + ChatColor.GRAY + " - 바라보는 벽에 조작판 위치와 배치를 저장합니다.");
+        player.sendMessage(ChatColor.YELLOW + "/" + label + " station palette <번호>" + ChatColor.GRAY + " - 바라보는 공간에 팔레트 위치를 저장합니다.");
         player.sendMessage(ChatColor.YELLOW + "/" + label + " station list" + ChatColor.GRAY + " - 수동 자리 목록을 봅니다.");
         player.sendMessage(ChatColor.YELLOW + "/" + label + " station remove <번호>" + ChatColor.GRAY + " - 수동 자리를 삭제합니다.");
     }

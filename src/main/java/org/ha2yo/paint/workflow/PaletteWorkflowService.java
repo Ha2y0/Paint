@@ -109,6 +109,30 @@ public final class PaletteWorkflowService {
         }
     }
 
+    public ArtworkPlacementCandidate placementCandidate(Player player) {
+        return paletteBoards == null ? null : paletteBoards.placementCandidate(player);
+    }
+
+    public boolean openBoardAt(Player player, ArtworkPlacementCandidate candidate) {
+        if (paletteBoards == null) {
+            return false;
+        }
+        UUID playerId = player.getUniqueId();
+        PaletteMode mode = paletteModes.getOrDefault(playerId, DEFAULT_PALETTE_MODE);
+        boolean opened = paletteBoards.openAt(
+                player,
+                selectedColors.getOrDefault(playerId, Color.BLACK),
+                brushRadii.getOrDefault(playerId, defaultBrushRadius),
+                mode,
+                canvasExists.test(playerId),
+                candidate
+        );
+        if (opened) {
+            paletteModes.put(playerId, mode);
+        }
+        return opened;
+    }
+
     public PaletteLook lookedBoard(Player player) {
         return paletteBoards == null ? null : paletteBoards.looked(player);
     }

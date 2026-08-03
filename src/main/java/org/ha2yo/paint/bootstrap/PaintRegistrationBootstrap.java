@@ -45,6 +45,11 @@ final class PaintRegistrationBootstrap {
                 coreRuntime.featureService::hasCanvas,
                 panelRuntime.inventoryToolWorkflow::giveTools,
                 panelRuntime.inventoryToolWorkflow::clearStrayPaintTools,
+                player -> {
+                    if (panelRuntime.freeModeDraftWorkflow != null) {
+                        panelRuntime.freeModeDraftWorkflow.onJoin(player);
+                    }
+                },
                 panelRuntime.playerLifecycleWorkflow::onQuit
         ), c.plugin());
         if (c.plugin().getCommand("paint") != null) {

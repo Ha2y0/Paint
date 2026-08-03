@@ -7,6 +7,7 @@ import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.GlowItemFrame;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.entity.Player;
@@ -403,7 +404,7 @@ public final class ArtworkPreviewService {
         location.setYaw(yawFor(front));
         location.setPitch(0.0F);
 
-        ItemFrame frame = world.spawn(location, ItemFrame.class);
+        ItemFrame frame = world.spawn(location, GlowItemFrame.class);
         frame.setFacingDirection(front, true);
         frame.setFixed(true);
         frame.setVisible(false);

@@ -7,6 +7,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.GlowItemFrame;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
@@ -166,7 +167,7 @@ public final class CanvasLifecycleService {
 
     private ItemFrame spawnMapFrame(World world, Block backingBlock, BlockFace front) {
         Location location = backingBlock.getRelative(front).getLocation().add(0.5D, 0.5D, 0.5D);
-        ItemFrame frame = world.spawn(location, ItemFrame.class);
+        ItemFrame frame = world.spawn(location, GlowItemFrame.class);
         frame.setFacingDirection(front, true);
         frame.setFixed(true);
         frame.setVisible(false);

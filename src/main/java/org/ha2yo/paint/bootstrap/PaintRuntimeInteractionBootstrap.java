@@ -61,6 +61,8 @@ final class PaintRuntimeInteractionBootstrap {
                 canvasRuntime.paletteWorkflow::handlePlacementSwing,
                 player -> panelRuntime.manualStationWorkflow != null
                         && panelRuntime.manualStationWorkflow.handlePlacementSwing(player),
+                playerId -> panelRuntime.manualStationWorkflow != null
+                        && panelRuntime.manualStationWorkflow.isUsingStation(playerId),
                 canvasRuntime.paletteLayerWorkflow::hasLayerOpacityInteractionLock
         );
         panelRuntime.playerLifecycleWorkflow = new PlayerLifecycleWorkflowService(
@@ -88,6 +90,11 @@ final class PaintRuntimeInteractionBootstrap {
                 player -> {
                     if (panelRuntime.manualStationWorkflow != null) {
                         panelRuntime.manualStationWorkflow.onQuit(player);
+                    }
+                },
+                player -> {
+                    if (panelRuntime.freeModeDraftWorkflow != null) {
+                        panelRuntime.freeModeDraftWorkflow.onQuit(player);
                     }
                 }
         );

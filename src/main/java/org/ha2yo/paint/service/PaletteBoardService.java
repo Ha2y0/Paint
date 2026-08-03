@@ -9,6 +9,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.GlowItemFrame;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -103,8 +104,13 @@ public final class PaletteBoardService {
             return false;
         }
 
-        remove(playerId);
         PalettePlacement placement = placementFromCandidate(candidate);
+        if (!canPlaceAt(placement.origin(), placement.right(), placement.front(), !placement.wallBacked())) {
+            player.sendMessage(ChatColor.RED + "팔레트 보드를 놓을 공간이 막혀 있습니다.");
+            return false;
+        }
+
+        remove(playerId);
         PaletteBoard board = new PaletteBoard(
                 playerId,
                 new CanvasPlane(placement.world().getUID(), placement.origin().getX(), placement.origin().getY(), placement.origin().getZ(), placement.facing(), placement.right()),
@@ -138,7 +144,6 @@ public final class PaletteBoardService {
                 board.frameIds().add(frame.getUniqueId());
                 frameBoards.put(frame.getUniqueId(), board);
                 frame.setItem(createMapItem(placement.world(), board, x, PALETTE_BLOCK_HEIGHT - 1 - y), false);
-                makeEntityVisibleOnlyToOwner(frame, playerId);
             }
         }
 
@@ -232,16 +237,16 @@ public final class PaletteBoardService {
 
     public void syncVisibility(Player viewer) {
         for (PaletteBoard board : boards.values()) {
-            boolean owner = board.isOwner(viewer);
             for (UUID frameId : board.frameIds()) {
                 Entity entity = Bukkit.getEntity(frameId);
                 if (entity == null) {
                     continue;
                 }
-                if (owner) {
-                    viewer.showEntity(plugin, entity);
-                } else {
-                    viewer.hideEntity(plugin, entity);
+                viewer.showEntity(plugin, entity);
+            }
+            if (board.plane().worldId().equals(viewer.getWorld().getUID())) {
+                for (CanvasMapTile tile : board.mapTiles()) {
+                    viewer.sendMap(tile.mapView());
                 }
             }
         }
@@ -301,13 +306,15 @@ public final class PaletteBoardService {
     }
 
     public void sendMaps(PaletteBoard board) {
-        Player player = plugin.getServer().getPlayer(board.ownerId());
-        if (player == null || !board.plane().worldId().equals(player.getWorld().getUID())) {
+        World world = plugin.getServer().getWorld(board.plane().worldId());
+        if (world == null) {
             return;
         }
 
-        for (CanvasMapTile tile : board.mapTiles()) {
-            player.sendMap(tile.mapView());
+        for (Player viewer : world.getPlayers()) {
+            for (CanvasMapTile tile : board.mapTiles()) {
+                viewer.sendMap(tile.mapView());
+            }
         }
     }
 
@@ -397,21 +404,11 @@ public final class PaletteBoardService {
 
     private ItemFrame spawnFloatingMapFrame(World world, Block planeBlock, BlockFace front) {
         Location location = planeBlock.getRelative(front).getLocation().add(0.5D, 0.5D, 0.5D);
-        ItemFrame frame = world.spawn(location, ItemFrame.class);
+        ItemFrame frame = world.spawn(location, GlowItemFrame.class);
         frame.setFacingDirection(front, true);
         frame.setFixed(true);
         frame.setVisible(false);
         return frame;
-    }
-
-    private void makeEntityVisibleOnlyToOwner(Entity entity, UUID ownerId) {
-        for (Player viewer : Bukkit.getOnlinePlayers()) {
-            if (viewer.getUniqueId().equals(ownerId)) {
-                viewer.showEntity(plugin, entity);
-            } else {
-                viewer.hideEntity(plugin, entity);
-            }
-        }
     }
 
     private ItemStack createMapItem(World world, PaletteBoard board, int tileX, int tileY) {

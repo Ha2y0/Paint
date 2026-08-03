@@ -26,7 +26,10 @@ public final class PaintShutdownService {
                 canvasRuntime.paletteWorkflow.endPlacement(player, false);
             }
             if (panelRuntime.manualStationWorkflow != null) {
-                panelRuntime.manualStationWorkflow.endPlacement(player, false);
+                panelRuntime.manualStationWorkflow.onQuit(player);
+            }
+            if (panelRuntime.freeModeDraftWorkflow != null) {
+                panelRuntime.freeModeDraftWorkflow.onQuit(player);
             }
             if (placementRuntime.placementUiWorkflow != null) {
                 placementRuntime.placementUiWorkflow.endCanvas(player, false);

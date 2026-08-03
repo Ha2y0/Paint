@@ -219,6 +219,7 @@ public final class PaintMenuService {
         NEW,
         CLEAR,
         SAVE,
+        DRAFT_SAVE,
         LIST,
         SHOW,
         REMOVE,

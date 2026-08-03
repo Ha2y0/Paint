@@ -28,6 +28,7 @@ public final class PaintCommandWorkflowService {
     private final PlacementModeWorkflowService placementModeWorkflow;
     private final PaletteWorkflowService paletteWorkflow;
     private final ManualStationWorkflowService manualStationWorkflow;
+    private final FreeModeDraftWorkflowService freeModeDraftWorkflow;
     private final Map<String, Color> palette;
     private final Map<UUID, Color> selectedColors;
     private final int defaultCanvasBlockWidth;
@@ -47,6 +48,7 @@ public final class PaintCommandWorkflowService {
             PlacementModeWorkflowService placementModeWorkflow,
             PaletteWorkflowService paletteWorkflow,
             ManualStationWorkflowService manualStationWorkflow,
+            FreeModeDraftWorkflowService freeModeDraftWorkflow,
             Map<String, Color> palette,
             Map<UUID, Color> selectedColors,
             int defaultCanvasBlockWidth,
@@ -65,6 +67,7 @@ public final class PaintCommandWorkflowService {
         this.placementModeWorkflow = placementModeWorkflow;
         this.paletteWorkflow = paletteWorkflow;
         this.manualStationWorkflow = manualStationWorkflow;
+        this.freeModeDraftWorkflow = freeModeDraftWorkflow;
         this.palette = palette;
         this.selectedColors = selectedColors;
         this.defaultCanvasBlockWidth = defaultCanvasBlockWidth;
@@ -160,10 +163,17 @@ public final class PaintCommandWorkflowService {
     }
 
     public boolean removeCanvas(UUID ownerId) {
+        if (freeModeDraftWorkflow != null) {
+            return freeModeDraftWorkflow.removeCanvasOrDraft(ownerId);
+        }
         return canvasWorkflow.remove(ownerId);
     }
 
     public void startCanvasPlacementPreview(Player player, int blockWidth, int blockHeight) {
+        if (freeModeDraftWorkflow != null) {
+            freeModeDraftWorkflow.startCanvasPlacement(player, blockWidth, blockHeight);
+            return;
+        }
         if (placementModeWorkflow != null) {
             placementModeWorkflow.startCanvas(player, blockWidth, blockHeight);
         }
@@ -235,6 +245,12 @@ public final class PaintCommandWorkflowService {
     public void setManualStationControl(Player player, String stationId, StationPanelSlot.Layout layout) {
         if (manualStationWorkflow != null) {
             manualStationWorkflow.setControlSlot(player, stationId, layout);
+        }
+    }
+
+    public void setManualStationPalette(Player player, String stationId) {
+        if (manualStationWorkflow != null) {
+            manualStationWorkflow.setPaletteSlot(player, stationId);
         }
     }
 

@@ -131,6 +131,17 @@ public final class PaintInteractionRouter {
             return;
         }
         UUID playerId = player.getUniqueId();
+        if (tool == Tool.PALETTE && facade.isUsingManualStation(playerId)) {
+            event.setCancelled(true);
+            facade.clearManualControlConfirm(player);
+            if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
+                PaletteLook paletteLook = facade.getLookedPaletteBoard(player);
+                if (paletteLook != null) {
+                    facade.handlePaletteBoardClick(player, paletteLook.board(), paletteLook);
+                }
+            }
+            return;
+        }
         if (tool == Tool.PALETTE && (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK)) {
             facade.markPaletteRightClick(playerId);
         }

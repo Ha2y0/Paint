@@ -14,7 +14,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
-import org.ha2yo.paint.api.PaintCanvas;
 import org.ha2yo.paint.Paint;
 import org.ha2yo.paint.manager.InventorySnapshot;
 import org.ha2yo.paint.mode.PlayerModeStore;
@@ -24,10 +23,12 @@ import org.ha2yo.paint.model.PlayerCanvas;
 import org.ha2yo.paint.model.session.ArtworkPlacementCandidate;
 import org.ha2yo.paint.model.station.ManualStation;
 import org.ha2yo.paint.model.station.StationCanvasSlot;
+import org.ha2yo.paint.model.station.StationPaletteSlot;
 import org.ha2yo.paint.model.station.StationPanelSlot;
 import org.ha2yo.paint.service.CanvasLifecycleService;
 import org.ha2yo.paint.service.CanvasMapRenderService;
 import org.ha2yo.paint.service.ManualStationService;
+import org.ha2yo.paint.service.ManualStationDraftStorageService;
 import org.ha2yo.paint.service.PaintMenuService;
 import org.ha2yo.paint.service.PaintPanelModeService;
 import org.ha2yo.paint.service.PaintPanelService;
@@ -36,21 +37,22 @@ import org.ha2yo.paint.service.PlacementPreviewService;
 
 import java.awt.Color;
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.ha2yo.paint.renderer.PaletteMapRenderer.PALETTE_BLOCK_HEIGHT;
+import static org.ha2yo.paint.renderer.PaletteMapRenderer.PALETTE_BLOCK_WIDTH;
+
 public final class ManualStationWorkflowService {
-    private static final DateTimeFormatter AUTO_SAVE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final double MANUAL_GALLERY_CENTER_OFFSET = 2.5D;
     private static final int MANUAL_GALLERY_BLOCK_WIDTH = 6;
     private static final int MANUAL_GALLERY_BLOCK_HEIGHT = 6;
@@ -70,8 +72,13 @@ public final class ManualStationWorkflowService {
     private final PaintPanelModeService paintPanelModes;
     private final ArtworkGalleryWorkflowService artworkGalleryWorkflow;
     private final ArtworkSaveWorkflowService artworkSaveWorkflow;
+    private final ManualStationDraftStorageService draftStorage;
+    private final PaletteWorkflowService paletteWorkflow;
     private final Supplier<PlacementPreviewService> placementPreviews;
-    private final Function<UUID, Optional<PaintCanvas>> canvasResolver;
+    private final Consumer<PlayerCanvas> canvasMapSender;
+    private final Consumer<PlayerCanvas> layerDisplayUpdater;
+    private final Function<UUID, UUID> editingArtworkResolver;
+    private final BiConsumer<UUID, UUID> editingArtworkSetter;
     private final Predicate<Player> freeModeChecker;
     private final Consumer<Player> toolGiver;
     private final int pixelsPerBlock;
@@ -95,8 +102,13 @@ public final class ManualStationWorkflowService {
             PaintPanelModeService paintPanelModes,
             ArtworkGalleryWorkflowService artworkGalleryWorkflow,
             ArtworkSaveWorkflowService artworkSaveWorkflow,
+            ManualStationDraftStorageService draftStorage,
+            PaletteWorkflowService paletteWorkflow,
             Supplier<PlacementPreviewService> placementPreviews,
-            Function<UUID, Optional<PaintCanvas>> canvasResolver,
+            Consumer<PlayerCanvas> canvasMapSender,
+            Consumer<PlayerCanvas> layerDisplayUpdater,
+            Function<UUID, UUID> editingArtworkResolver,
+            BiConsumer<UUID, UUID> editingArtworkSetter,
             Predicate<Player> freeModeChecker,
             Consumer<Player> toolGiver,
             int pixelsPerBlock,
@@ -118,8 +130,13 @@ public final class ManualStationWorkflowService {
         this.paintPanelModes = paintPanelModes;
         this.artworkGalleryWorkflow = artworkGalleryWorkflow;
         this.artworkSaveWorkflow = artworkSaveWorkflow;
+        this.draftStorage = draftStorage;
+        this.paletteWorkflow = paletteWorkflow;
         this.placementPreviews = placementPreviews;
-        this.canvasResolver = canvasResolver;
+        this.canvasMapSender = canvasMapSender;
+        this.layerDisplayUpdater = layerDisplayUpdater;
+        this.editingArtworkResolver = editingArtworkResolver;
+        this.editingArtworkSetter = editingArtworkSetter;
         this.freeModeChecker = freeModeChecker;
         this.toolGiver = toolGiver;
         this.pixelsPerBlock = pixelsPerBlock;
@@ -136,6 +153,10 @@ public final class ManualStationWorkflowService {
 
     public boolean isFreeMode(Player player) {
         return freeModeChecker.test(player);
+    }
+
+    public boolean isUsingStation(UUID playerId) {
+        return stations.occupiedBy(playerId).isPresent();
     }
 
     public boolean handleCanvasFrameClick(Player player, UUID frameId) {
@@ -168,11 +189,19 @@ public final class ManualStationWorkflowService {
             artworkSaveWorkflow.beginNameInput(player);
             return true;
         }
+        if (action == PaintMenuService.MenuAction.DRAFT_SAVE) {
+            pendingControlRemoveConfirms.remove(player.getUniqueId());
+            saveDraftAndEnd(player, station.get());
+            return true;
+        }
         if (action == PaintMenuService.MenuAction.REMOVE || action == PaintMenuService.MenuAction.CANCEL) {
             if (!pendingControlRemoveConfirms.remove(player.getUniqueId())) {
                 pendingControlRemoveConfirms.add(player.getUniqueId());
                 showStationControlPanel(player, station.get(), true);
                 player.sendMessage(ChatColor.YELLOW + "캔버스를 삭제하려면 한 번 더 눌러 주세요.");
+                return true;
+            }
+            if (!deleteDraft(player, station.get())) {
                 return true;
             }
             endStation(player, station.get(), true, true);
@@ -186,7 +215,10 @@ public final class ManualStationWorkflowService {
         if (isFreeMode(player)) {
             return;
         }
-        stations.occupiedBy(player.getUniqueId()).ifPresent(station -> endStation(player, station, false, true));
+        stations.occupiedBy(player.getUniqueId()).ifPresent(station -> {
+            deleteDraftAfterArtworkSave(player, station);
+            endStation(player, station, false, true);
+        });
     }
 
     public void clearControlRemoveConfirm(Player player) {
@@ -202,14 +234,8 @@ public final class ManualStationWorkflowService {
             return;
         }
         stations.occupiedBy(player.getUniqueId()).ifPresent(station -> {
-            Optional<PaintCanvas> canvas = canvasResolver.apply(player.getUniqueId());
-            if (canvas.isPresent() && canvas.get().hasPaintedPixels()) {
-                artworkSaveWorkflow.saveWithName(player, "자동 저장 " + LocalDateTime.now().format(AUTO_SAVE_FORMAT));
-            }
-            if (canvasWorkflow.hasCanvas(player.getUniqueId())) {
-                canvasWorkflow.remove(player.getUniqueId());
-            }
-            endStation(player, station, false, false);
+            saveOrClearDraftOnQuit(player, station);
+            endStation(player, station, true, true);
         });
     }
 
@@ -273,8 +299,8 @@ public final class ManualStationWorkflowService {
                 new ManualStationPlacementSession(
                         PlacementType.CONTROL,
                         stationId,
-                        normalizedLayout == StationPanelSlot.Layout.VERTICAL ? 1 : 2,
-                        normalizedLayout == StationPanelSlot.Layout.VERTICAL ? 2 : 1,
+                        normalizedLayout == StationPanelSlot.Layout.VERTICAL ? 1 : 3,
+                        normalizedLayout == StationPanelSlot.Layout.VERTICAL ? 3 : 1,
                         normalizedLayout,
                         List.of(),
                         null,
@@ -282,6 +308,27 @@ public final class ManualStationWorkflowService {
                         System.currentTimeMillis()
                 ),
                 "수동 조작판을 붙일 벽을 바라보고 우클릭을 눌러 저장하세요. (좌클릭: 취소)"
+        );
+    }
+
+    public void setPaletteSlot(Player player, String stationId) {
+        if (isStationInUse(player, stationId)) {
+            return;
+        }
+        startPlacement(
+                player,
+                new ManualStationPlacementSession(
+                        PlacementType.PALETTE,
+                        stationId,
+                        PALETTE_BLOCK_WIDTH,
+                        PALETTE_BLOCK_HEIGHT,
+                        StationPanelSlot.Layout.HORIZONTAL,
+                        List.of(),
+                        null,
+                        null,
+                        System.currentTimeMillis()
+                ),
+                "수동 팔레트를 설치할 공간을 바라보고 우클릭을 눌러 저장하세요. (좌클릭: 취소)"
         );
     }
 
@@ -395,9 +442,21 @@ public final class ManualStationWorkflowService {
             } else if (session.type() == PlacementType.GALLERY) {
                 ManualStation station = stations.putGallery(session.stationId(), session.panelSlot());
                 player.sendMessage(ChatColor.GREEN + "수동 갤러리 위치를 저장했습니다. " + ChatColor.WHITE + station.id());
-            } else {
+            } else if (session.type() == PlacementType.CONTROL) {
                 ManualStation station = stations.putControl(session.stationId(), session.panelSlot());
                 player.sendMessage(ChatColor.GREEN + "수동 조작판 위치를 저장했습니다. " + ChatColor.WHITE + station.id());
+            } else {
+                StationPaletteSlot slot = new StationPaletteSlot(
+                        candidate.world().getUID(),
+                        candidate.origin().getX(),
+                        candidate.origin().getY(),
+                        candidate.origin().getZ(),
+                        candidate.facing(),
+                        candidate.right(),
+                        candidate.snappedToSurface()
+                );
+                ManualStation station = stations.putPalette(session.stationId(), slot);
+                player.sendMessage(ChatColor.GREEN + "수동 팔레트 위치를 저장했습니다. " + ChatColor.WHITE + station.id());
             }
             finishPlacement(player);
         } catch (IOException e) {
@@ -468,6 +527,7 @@ public final class ManualStationWorkflowService {
             case CANVAS -> canvasPlacementCandidate(player, session);
             case GALLERY -> galleryPlacementCandidate(player);
             case CONTROL -> controlPlacementCandidate(player, session.layout());
+            case PALETTE -> palettePlacementCandidate(player);
         };
     }
 
@@ -506,6 +566,13 @@ public final class ManualStationWorkflowService {
                 true
         );
         return new CandidateWithPanel(candidate, StationPanelSlot.from(anchor, facing));
+    }
+
+    private CandidateWithPanel palettePlacementCandidate(Player player) {
+        if (paletteWorkflow == null) {
+            return null;
+        }
+        return new CandidateWithPanel(paletteWorkflow.placementCandidate(player), null);
     }
 
     private CandidateWithPanel controlPlacementCandidate(Player player, StationPanelSlot.Layout layout) {
@@ -571,6 +638,7 @@ public final class ManualStationWorkflowService {
                     + " canvas=" + yesNo(station.canvas() != null)
                     + " gallery=" + yesNo(station.gallery() != null)
                     + " control=" + yesNo(station.control() != null)
+                    + " palette=" + yesNo(station.palette() != null)
                     + " occupied=" + yesNo(station.occupied()));
         }
     }
@@ -594,7 +662,7 @@ public final class ManualStationWorkflowService {
 
     private void startStation(Player player, ManualStation station) {
         if (!station.ready()) {
-            player.sendMessage(ChatColor.RED + "이 자리는 캔버스, 갤러리, 조작판 위치가 모두 필요합니다.");
+            player.sendMessage(ChatColor.RED + "이 자리는 캔버스, 갤러리, 조작판, 팔레트 위치가 모두 필요합니다.");
             return;
         }
         if (station.occupied()) {
@@ -611,6 +679,11 @@ public final class ManualStationWorkflowService {
             player.sendMessage(ChatColor.RED + "캔버스 월드를 찾을 수 없습니다.");
             return;
         }
+        ArtworkPlacementCandidate paletteCandidate = stationPaletteCandidate(station.palette());
+        if (paletteCandidate == null) {
+            player.sendMessage(ChatColor.RED + "팔레트 월드를 찾을 수 없습니다.");
+            return;
+        }
         canvasLifecycle.remove(stations.blankOwnerId(station.id()), false);
         canvasWorkflow.create(
                 player.getUniqueId(),
@@ -620,6 +693,23 @@ public final class ManualStationWorkflowService {
                 station.canvas().width(),
                 station.canvas().height()
         );
+        boolean draftRestored;
+        try {
+            draftRestored = restoreDraft(player, station);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Could not load manual station draft for " + player.getName()
+                    + " at " + station.id() + ": " + e.getMessage());
+            canvasWorkflow.remove(player.getUniqueId());
+            spawnBlankCanvas(station);
+            player.sendMessage(ChatColor.RED + "임시저장 그림을 불러오지 못했습니다. 캔버스 크기와 콘솔 로그를 확인해 주세요.");
+            return;
+        }
+        if (paletteWorkflow == null || !paletteWorkflow.openBoardAt(player, paletteCandidate)) {
+            canvasWorkflow.remove(player.getUniqueId());
+            spawnBlankCanvas(station);
+            player.sendMessage(ChatColor.RED + "지정된 위치에 수동 팔레트를 열 수 없습니다.");
+            return;
+        }
         stations.occupy(station.id(), player.getUniqueId());
         pendingControlRemoveConfirms.remove(player.getUniqueId());
         if (paintPanelModes != null) {
@@ -628,12 +718,123 @@ public final class ManualStationWorkflowService {
         toolGiver.accept(player);
         showStationUi(player, station);
         player.sendMessage(ChatColor.GREEN + "수동 캔버스를 사용합니다.");
+        if (draftRestored) {
+            player.sendMessage(ChatColor.GREEN + "임시저장된 그림을 불러왔습니다.");
+        }
+    }
+
+    private boolean restoreDraft(Player player, ManualStation station) throws IOException {
+        PlayerCanvas canvas = canvasLifecycle.canvas(player.getUniqueId());
+        if (canvas == null) {
+            throw new IOException("Created manual canvas is missing");
+        }
+        Optional<ManualStationDraftStorageService.Draft> stored = draftStorage.load(
+                station.id(),
+                player.getUniqueId(),
+                canvas.pixelCanvas().width(),
+                canvas.pixelCanvas().height()
+        );
+        if (stored.isEmpty()) {
+            return false;
+        }
+
+        ManualStationDraftStorageService.Draft draft = stored.get();
+        canvas.pixelCanvas().restore(draft.snapshot());
+        canvas.undoSnapshots().clear();
+        canvas.redoSnapshots().clear();
+        canvas.resetSentTileVersions();
+        if (draft.editingArtworkId() != null) {
+            editingArtworkSetter.accept(player.getUniqueId(), draft.editingArtworkId());
+        }
+        canvasMapSender.accept(canvas);
+        layerDisplayUpdater.accept(canvas);
+        return true;
+    }
+
+    private void saveDraftAndEnd(Player player, ManualStation station) {
+        PlayerCanvas canvas = canvasLifecycle.canvas(player.getUniqueId());
+        if (canvas == null) {
+            player.sendMessage(ChatColor.RED + "임시저장할 캔버스를 찾을 수 없습니다.");
+            return;
+        }
+        if (!canvas.pixelCanvas().hasPaintedPixels()) {
+            player.sendMessage(ChatColor.RED + "빈 캔버스는 임시저장할 수 없습니다.");
+            return;
+        }
+
+        try {
+            draftStorage.save(
+                    station.id(),
+                    player.getUniqueId(),
+                    canvas.pixelCanvas().width(),
+                    canvas.pixelCanvas().height(),
+                    canvas.pixelCanvas().layerSnapshot(),
+                    editingArtworkResolver.apply(player.getUniqueId())
+            );
+        } catch (IOException e) {
+            plugin.getLogger().warning("Could not save manual station draft for " + player.getName()
+                    + " at " + station.id() + ": " + e.getMessage());
+            player.sendMessage(ChatColor.RED + "그림 임시저장에 실패했습니다. 작업은 그대로 유지됩니다.");
+            return;
+        }
+
+        endStation(player, station, true, true);
+        player.sendMessage(ChatColor.GREEN + "그림을 임시저장하고 작업을 종료했습니다.");
+    }
+
+    private void saveOrClearDraftOnQuit(Player player, ManualStation station) {
+        PlayerCanvas canvas = canvasLifecycle.canvas(player.getUniqueId());
+        if (canvas == null) {
+            return;
+        }
+        try {
+            if (canvas.pixelCanvas().hasPaintedPixels()) {
+                draftStorage.save(
+                        station.id(),
+                        player.getUniqueId(),
+                        canvas.pixelCanvas().width(),
+                        canvas.pixelCanvas().height(),
+                        canvas.pixelCanvas().layerSnapshot(),
+                        editingArtworkResolver.apply(player.getUniqueId())
+                );
+            } else {
+                draftStorage.delete(station.id(), player.getUniqueId());
+            }
+        } catch (IOException e) {
+            plugin.getLogger().warning("Could not update manual station draft on quit for " + player.getName()
+                    + " at " + station.id() + ": " + e.getMessage());
+        }
+    }
+
+    private boolean deleteDraft(Player player, ManualStation station) {
+        try {
+            draftStorage.delete(station.id(), player.getUniqueId());
+            return true;
+        } catch (IOException e) {
+            plugin.getLogger().warning("Could not delete manual station draft for " + player.getName()
+                    + " at " + station.id() + ": " + e.getMessage());
+            player.sendMessage(ChatColor.RED + "임시저장 데이터를 삭제하지 못해 작업 종료를 취소했습니다.");
+            return false;
+        }
+    }
+
+    private void deleteDraftAfterArtworkSave(Player player, ManualStation station) {
+        try {
+            draftStorage.delete(station.id(), player.getUniqueId());
+        } catch (IOException e) {
+            plugin.getLogger().warning("Could not delete manual station draft after artwork save for "
+                    + player.getName() + " at " + station.id() + ": " + e.getMessage());
+            player.sendMessage(ChatColor.RED + "완성 그림은 저장됐지만 이전 임시저장 데이터를 삭제하지 못했습니다.");
+        }
     }
 
     private void endStation(Player player, ManualStation station, boolean removeCanvas, boolean restoreBlank) {
         pendingControlRemoveConfirms.remove(player.getUniqueId());
         if (removeCanvas && canvasWorkflow.hasCanvas(player.getUniqueId())) {
             canvasWorkflow.remove(player.getUniqueId());
+        }
+        if (paletteWorkflow != null) {
+            paletteWorkflow.removeBoard(player.getUniqueId());
         }
         if (artworkGalleryWorkflow != null) {
             artworkGalleryWorkflow.end(player);
@@ -681,6 +882,25 @@ public final class ManualStationWorkflowService {
         );
     }
 
+    private ArtworkPlacementCandidate stationPaletteCandidate(StationPaletteSlot slot) {
+        if (slot == null) {
+            return null;
+        }
+        World world = plugin.getServer().getWorld(slot.worldId());
+        if (world == null) {
+            return null;
+        }
+        return new ArtworkPlacementCandidate(
+                world,
+                world.getBlockAt(slot.x(), slot.y(), slot.z()),
+                slot.facing(),
+                slot.right(),
+                BlockFace.UP,
+                true,
+                slot.wallBacked()
+        );
+    }
+
     private void spawnBlankCanvas(ManualStation station) {
         StationCanvasSlot slot = station.canvas();
         if (slot == null) {
@@ -719,7 +939,8 @@ public final class ManualStationWorkflowService {
     private enum PlacementType {
         CANVAS,
         GALLERY,
-        CONTROL
+        CONTROL,
+        PALETTE
     }
 
     private record CandidateWithPanel(ArtworkPlacementCandidate candidate, StationPanelSlot panelSlot) {

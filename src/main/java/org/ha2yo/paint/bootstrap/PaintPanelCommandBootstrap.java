@@ -1,7 +1,10 @@
 package org.ha2yo.paint.bootstrap;
 
 import org.ha2yo.paint.PaintApplication;
+import org.ha2yo.paint.service.FreeModeDraftStorageService;
+import org.ha2yo.paint.service.ManualStationDraftStorageService;
 import org.ha2yo.paint.service.ManualStationService;
+import org.ha2yo.paint.workflow.FreeModeDraftWorkflowService;
 import org.ha2yo.paint.workflow.ManualStationWorkflowService;
 import org.ha2yo.paint.workflow.PaintCommandWorkflowService;
 import org.ha2yo.paint.workflow.PaintPanelWorkflowService;
@@ -18,6 +21,7 @@ final class PaintPanelCommandBootstrap {
         var placementRuntime = runtime.placement();
         var panelRuntime = runtime.panel();
         panelRuntime.manualStations = new ManualStationService(c.plugin());
+        var manualDrafts = new ManualStationDraftStorageService(c.plugin());
         panelRuntime.manualStationWorkflow = new ManualStationWorkflowService(
                 c.plugin(),
                 panelRuntime.manualStations,
@@ -32,8 +36,13 @@ final class PaintPanelCommandBootstrap {
                 panelRuntime.paintPanelModes,
                 artworkRuntime.artworkGalleryWorkflow,
                 artworkRuntime.artworkSaveWorkflow,
+                manualDrafts,
+                canvasRuntime.paletteWorkflow,
                 () -> placementRuntime.placementPreviews,
-                coreRuntime.featureService::canvas,
+                canvasRuntime.canvasMaps::send,
+                canvasRuntime.paletteLayerWorkflow::updateLayerDisplays,
+                artworkRuntime.editingArtworkIds::get,
+                artworkRuntime.editingArtworkIds::put,
                 player -> c.plugin().getConfig().getBoolean("free-mode", true),
                 panelRuntime.inventoryToolWorkflow::giveTools,
                 PaintApplication.CANVAS_PIXELS_PER_BLOCK,
@@ -43,6 +52,24 @@ final class PaintPanelCommandBootstrap {
                 coreRuntime.featureService::clampCanvasBlockSize
         );
         panelRuntime.manualStationWorkflow.loadAndSpawn();
+        panelRuntime.freeModeDraftWorkflow = new FreeModeDraftWorkflowService(
+                c.plugin(),
+                new FreeModeDraftStorageService(
+                        c.plugin(),
+                        PaintApplication.CANVAS_PIXELS_PER_BLOCK,
+                        PaintApplication.MAX_CANVAS_BLOCK_SIZE
+                ),
+                canvasRuntime.canvasLifecycle,
+                canvasRuntime.canvasWorkflow,
+                placementRuntime.placementUiWorkflow,
+                canvasRuntime.canvasMaps::send,
+                canvasRuntime.paletteLayerWorkflow::updateLayerDisplays,
+                artworkRuntime.editingArtworkIds::get,
+                artworkRuntime.editingArtworkIds::put,
+                player -> c.plugin().getConfig().getBoolean("free-mode", true),
+                PaintApplication.CANVAS_PIXELS_PER_BLOCK,
+                PaintApplication.MAX_CANVAS_BLOCK_SIZE
+        );
         panelRuntime.paintPanelWorkflow = new PaintPanelWorkflowService(
                 coreRuntime.paintMenus,
                 panelRuntime.paintPanels,
@@ -52,8 +79,9 @@ final class PaintPanelCommandBootstrap {
                 PaintApplication.DEFAULT_CANVAS_BLOCK_HEIGHT,
                 PaintApplication.MAX_CANVAS_BLOCK_SIZE,
                 coreRuntime.featureService::canCreateNewCanvas,
+                panelRuntime.freeModeDraftWorkflow::hasDraft,
                 coreRuntime.featureService::clearCanvas,
-                coreRuntime.featureService::removeCanvas,
+                panelRuntime.freeModeDraftWorkflow::removeCanvasOrDraft,
                 coreRuntime.featureService::handleSaveArtwork,
                 player -> {
                     if (artworkRuntime.artworkGalleryWorkflow != null) {
@@ -61,7 +89,7 @@ final class PaintPanelCommandBootstrap {
                     }
                 },
                 placementRuntime.placementUiWorkflow::startExhibitRemoval,
-                placementRuntime.placementUiWorkflow::startCanvas,
+                panelRuntime.freeModeDraftWorkflow::startCanvasPlacement,
                 panelRuntime.inventoryToolWorkflow::startPaintPanelModeIfNeeded,
                 panelRuntime.inventoryToolWorkflow::endPaintPanelMode,
                 coreRuntime.featureService::clearPaintPanelOnly,
@@ -81,6 +109,7 @@ final class PaintPanelCommandBootstrap {
                 placementRuntime.placementModeWorkflow,
                 canvasRuntime.paletteWorkflow,
                 panelRuntime.manualStationWorkflow,
+                panelRuntime.freeModeDraftWorkflow,
                 drawingRuntime.palette,
                 drawingRuntime.selectedColors,
                 PaintApplication.DEFAULT_CANVAS_BLOCK_WIDTH,

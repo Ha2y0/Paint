@@ -9,6 +9,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.ha2yo.paint.Paint;
 import org.ha2yo.paint.model.station.ManualStation;
 import org.ha2yo.paint.model.station.StationCanvasSlot;
+import org.ha2yo.paint.model.station.StationPaletteSlot;
 import org.ha2yo.paint.model.station.StationPanelSlot;
 
 import java.io.File;
@@ -50,6 +51,7 @@ public final class ManualStationService {
                     readCanvas(section.getConfigurationSection("canvas")),
                     readPanel(section.getConfigurationSection("gallery")),
                     readPanel(section.getConfigurationSection("control")),
+                    readPalette(section.getConfigurationSection("palette")),
                     null
             ));
         }
@@ -62,6 +64,7 @@ public final class ManualStationService {
             writeCanvas(config.createSection(path + ".canvas"), station.canvas());
             writePanel(config.createSection(path + ".gallery"), station.gallery());
             writePanel(config.createSection(path + ".control"), station.control());
+            writePalette(config.createSection(path + ".palette"), station.palette());
         }
         config.save(file);
     }
@@ -90,6 +93,13 @@ public final class ManualStationService {
 
     public ManualStation putControl(String id, StationPanelSlot control) throws IOException {
         ManualStation station = baseStation(id).withControl(control);
+        stations.put(station.id(), station);
+        save();
+        return station;
+    }
+
+    public ManualStation putPalette(String id, StationPaletteSlot palette) throws IOException {
+        ManualStation station = baseStation(id).withPalette(palette);
         stations.put(station.id(), station);
         save();
         return station;
@@ -145,7 +155,7 @@ public final class ManualStationService {
     private ManualStation baseStation(String id) {
         String normalized = normalizeId(id);
         ManualStation current = stations.get(normalized);
-        return current == null ? new ManualStation(normalized, null, null, null, null) : current;
+        return current == null ? new ManualStation(normalized, null, null, null, null, null) : current;
     }
 
     private ArrayList<ManualStation> sortedStations() {
@@ -191,6 +201,21 @@ public final class ManualStationService {
         );
     }
 
+    private StationPaletteSlot readPalette(ConfigurationSection section) {
+        if (section == null || !section.contains("world")) {
+            return null;
+        }
+        return new StationPaletteSlot(
+                UUID.fromString(section.getString("world")),
+                section.getInt("x"),
+                section.getInt("y"),
+                section.getInt("z"),
+                BlockFace.valueOf(section.getString("facing", BlockFace.NORTH.name())),
+                BlockFace.valueOf(section.getString("right", BlockFace.EAST.name())),
+                section.getBoolean("wall-backed", true)
+        );
+    }
+
     private StationPanelSlot.Layout readPanelLayout(ConfigurationSection section) {
         String value = section.getString("layout", StationPanelSlot.Layout.HORIZONTAL.name());
         try {
@@ -226,5 +251,18 @@ public final class ManualStationService {
         section.set("pitch", slot.pitch());
         section.set("facing", slot.facing().name());
         section.set("layout", slot.layout().name());
+    }
+
+    private void writePalette(ConfigurationSection section, StationPaletteSlot slot) {
+        if (slot == null) {
+            return;
+        }
+        section.set("world", slot.worldId().toString());
+        section.set("x", slot.x());
+        section.set("y", slot.y());
+        section.set("z", slot.z());
+        section.set("facing", slot.facing().name());
+        section.set("right", slot.right().name());
+        section.set("wall-backed", slot.wallBacked());
     }
 }

@@ -6,6 +6,7 @@ import org.ha2yo.paint.service.PaintPanelModeService;
 import org.ha2yo.paint.service.PaintPanelService;
 import org.ha2yo.paint.service.ManualStationService;
 import org.ha2yo.paint.workflow.CanvasEventWorkflowService;
+import org.ha2yo.paint.workflow.FreeModeDraftWorkflowService;
 import org.ha2yo.paint.workflow.InteractionToolWorkflowService;
 import org.ha2yo.paint.workflow.InventoryToolWorkflowService;
 import org.ha2yo.paint.workflow.ManualStationWorkflowService;
@@ -25,6 +26,7 @@ public final class PanelRuntime {
     public PaintPanelWorkflowService paintPanelWorkflow;
     public ManualStationService manualStations;
     public ManualStationWorkflowService manualStationWorkflow;
+    public FreeModeDraftWorkflowService freeModeDraftWorkflow;
     public PaintCommandWorkflowService paintCommandWorkflow;
     public PlayerLifecycleWorkflowService playerLifecycleWorkflow;
     public PaintTickWorkflowService paintTickWorkflow;

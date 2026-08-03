@@ -66,6 +66,9 @@ final class PaintGalleryBootstrap {
                     if (panelRuntime.manualStationWorkflow != null) {
                         panelRuntime.manualStationWorkflow.onCanvasSaved(player);
                     }
+                    if (panelRuntime.freeModeDraftWorkflow != null) {
+                        panelRuntime.freeModeDraftWorkflow.onCanvasSaved(player);
+                    }
                 }
         );
     }

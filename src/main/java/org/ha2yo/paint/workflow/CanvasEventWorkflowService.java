@@ -41,6 +41,7 @@ public final class CanvasEventWorkflowService {
     private final Predicate<Player> artworkPlacementSwingHandler;
     private final Predicate<Player> palettePlacementSwingHandler;
     private final Predicate<Player> manualStationPlacementSwingHandler;
+    private final Predicate<UUID> manualStationUseChecker;
     private final Predicate<Player> layerOpacityInteractionLockChecker;
 
     public CanvasEventWorkflowService(
@@ -61,6 +62,7 @@ public final class CanvasEventWorkflowService {
             Predicate<Player> artworkPlacementSwingHandler,
             Predicate<Player> palettePlacementSwingHandler,
             Predicate<Player> manualStationPlacementSwingHandler,
+            Predicate<UUID> manualStationUseChecker,
             Predicate<Player> layerOpacityInteractionLockChecker
     ) {
         this.toolModeGuards = toolModeGuards;
@@ -80,6 +82,7 @@ public final class CanvasEventWorkflowService {
         this.artworkPlacementSwingHandler = artworkPlacementSwingHandler;
         this.palettePlacementSwingHandler = palettePlacementSwingHandler;
         this.manualStationPlacementSwingHandler = manualStationPlacementSwingHandler;
+        this.manualStationUseChecker = manualStationUseChecker;
         this.layerOpacityInteractionLockChecker = layerOpacityInteractionLockChecker;
     }
 
@@ -96,7 +99,8 @@ public final class CanvasEventWorkflowService {
             event.setCancelled(true);
             return;
         }
-        if (selectedTools.getOrDefault(player.getUniqueId(), Tool.PENCIL) == Tool.PALETTE) {
+        if (selectedTools.getOrDefault(player.getUniqueId(), Tool.PENCIL) == Tool.PALETTE
+                && !manualStationUseChecker.test(player.getUniqueId())) {
             paletteBoardRemover.accept(player.getUniqueId());
         }
 
@@ -152,6 +156,9 @@ public final class CanvasEventWorkflowService {
         if (selectedTools.getOrDefault(playerId, Tool.PENCIL) != Tool.PALETTE) {
             return;
         }
+        if (manualStationUseChecker.test(playerId)) {
+            return;
+        }
 
         long now = System.currentTimeMillis();
         long lastRightClick = lastPaletteRightClickTimes.getOrDefault(playerId, 0L);
@@ -167,7 +174,8 @@ public final class CanvasEventWorkflowService {
         PaletteBoard paletteBoard = paletteBoards == null ? null : paletteBoards.boardByBlock(key);
         if (paletteBoard != null) {
             event.setCancelled(true);
-            if (paletteBoard.isOwner(event.getPlayer())) {
+            if (paletteBoard.isOwner(event.getPlayer())
+                    && !manualStationUseChecker.test(event.getPlayer().getUniqueId())) {
                 paletteBoardRemover.accept(paletteBoard.ownerId());
                 event.getPlayer().sendMessage(ChatColor.YELLOW + "Paint 팔레트 보드를 제거했습니다.");
             }

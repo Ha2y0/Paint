@@ -19,6 +19,7 @@ public final class PaintPlayerEventController implements Listener {
     private final Predicate<UUID> canvasOwnerChecker;
     private final Consumer<Player> toolGiver;
     private final Consumer<Player> strayToolCleaner;
+    private final Consumer<Player> joinHandler;
     private final Consumer<PlayerQuitEvent> quitHandler;
     public PaintPlayerEventController(
             Paint plugin,
@@ -29,6 +30,7 @@ public final class PaintPlayerEventController implements Listener {
             Predicate<UUID> canvasOwnerChecker,
             Consumer<Player> toolGiver,
             Consumer<Player> strayToolCleaner,
+            Consumer<Player> joinHandler,
             Consumer<PlayerQuitEvent> quitHandler
     ) {
         this.plugin = plugin;
@@ -39,6 +41,7 @@ public final class PaintPlayerEventController implements Listener {
         this.canvasOwnerChecker = canvasOwnerChecker;
         this.toolGiver = toolGiver;
         this.strayToolCleaner = strayToolCleaner;
+        this.joinHandler = joinHandler;
         this.quitHandler = quitHandler;
     }
     @EventHandler
@@ -51,6 +54,9 @@ public final class PaintPlayerEventController implements Listener {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (!player.isOnline()) {
                 return;
+            }
+            if (joinHandler != null) {
+                joinHandler.accept(player);
             }
             if (canvasOwnerChecker.test(player.getUniqueId())) {
                 toolGiver.accept(player);
